@@ -1,6 +1,6 @@
-# A股每日自动复盘报告 skill 
+# A股每日复盘报告 skill 
 
-每个交易日收盘后，可自动调用本skill采集行情数据、生成手机适配的 HTML 复盘报告。
+可配置一个自动任务在每个交易日收盘后（最好下午4点以后，有些统计数据需要那时候才能出来），调用本skill采集行情数据、生成手机适配的 HTML 复盘报告。
 
 数据全部来自**公开免费接口**（东财 / 同花顺 / 腾讯 / 新浪），**不需要任何账号或密钥**。
 
@@ -29,10 +29,10 @@ python scripts/fetch_report_data.py
 python scripts/render_report.py --date <YYYYMMDD>
 ```
 
-**代码与数据分离**：脚本用 `__file__` 自定位，**与 cwd 无关**；所有运行期产物写到独立的数据根，默认 `~/.ashare-review`，可用环境变量覆盖：
+**代码与数据分离**：脚本用 `__file__` 自定位，**与 cwd 无关**；所有运行期产物写到独立的数据根，默认 `~/.stock-review`，可用环境变量覆盖：
 
 ```bash
-export ASHARE_REVIEW_HOME=/path/to/your/data    # Windows: set / $env:
+export STOCK_REVIEW_HOME=/path/to/your/data    # Windows: set / $env:
 ```
 
 数据根**不允许**落在 skill 目录内（脚本会报错退出），避免运行期数据混进代码包。
@@ -66,7 +66,7 @@ python scripts/backfill_history.py --verify      # 用历史法复算并与当�
 ## 设计要点
 
 - **限速 1.6s + 重试退避 + 多主机降级**：东财会做 IP 级封禁（实测高频请求后 push2/push2his 整域断连约 40 分钟），请勿并行或缩短间隔
-- **默认绕过系统代理**（本地代理常污染 requests）；企业网络必须走代理时设 `ASHARE_REVIEW_TRUST_ENV=1`
+- **默认绕过系统代理**（本地代理常污染 requests）；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`
 - **主源 + 兜底多源交叉**：指数、板块、涨跌家数、成交额各有独立兜底链路，脏数据自动丢弃并落本地缓存
 - **统计口径**：市场交易数据一律全市场（沪深京，含北交所、含 ST），不做剔除
 
