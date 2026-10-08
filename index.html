@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="format-detection" content="telephone=no">
+<title>A股每日复盘报告 · 示例 | stock-daily-review</title>
+<style>
+:root{
+  --bg:#fbf1e3; --panel:#fffdf9; --panel2:#fff9ef; --line:#ecd9bd; --line2:#f4e9d8;
+  --t1:#2a1a14; --t2:#5a463e; --t3:#8b7568; --t4:#a89285;
+  --red:#c8102e; --red-l:#e23a4e; --gold:#c99a1f; --gold-d:#f7edd8; --th:#8a6a2a;
+  --up:#d32b28; --dn:#17915a; --orange:#c9770f; --purple:#7c4ddb; --bar-mid:#f0e2cc;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t2);overflow-x:hidden;overflow-wrap:break-word;
+  font:14px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+.up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--t3)}.t1{color:var(--t1)}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+/* header */
+.head{text-align:center;padding:8px 0 22px}
+.head h1{display:flex;align-items:center;justify-content:center;gap:10px;margin:0;
+  font-size:24px;font-weight:600;color:var(--t1);letter-spacing:.5px}
+.head h1 i{display:inline-block;width:20px;height:20px;background:var(--red);border-radius:4px;flex:none}
+.head .sub{margin-top:10px;font-size:15px;color:var(--t2)}
+.head .src{margin-top:6px;font-size:12px;color:var(--t4)}
+/* kpi */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 12px;text-align:center}
+.kpi .k-name{font-size:12px;color:var(--t3)}
+.kpi .k-val{font-size:26px;font-weight:600;color:var(--t1);margin:4px 0 2px;letter-spacing:-.5px}
+.kpi .k-pct{font-size:13px;font-weight:500}
+.kpi .k-sub{font-size:11px;color:var(--t4);margin-top:4px}
+/* section */
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+.sec>h2{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:16px;font-weight:600;color:var(--t1)}
+.sec>h2 i{display:inline-block;width:4px;height:16px;border-radius:2px;background:var(--red);flex:none}
+.sec>h2 .tag{margin-left:auto;font-size:11px;font-weight:500;padding:2px 8px;border-radius:5px;flex:none}
+.tag.data{background:#f7edd8;color:#a67c12}
+.tag.ai{background:#f4eefd;color:var(--purple)}
+.tag.mix{background:#eef7e6;color:#4d8b1f}
+.sub-t{font-size:13px;font-weight:500;color:var(--red);margin:14px 0 7px;display:flex;align-items:center;gap:6px}
+.sub-t:first-of-type{margin-top:0}
+.scope-note{font-size:11px;color:var(--t3);font-weight:400;margin-left:8px}
+/* table */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--gold-d);color:var(--th);text-align:left;font-weight:500;padding:8px 10px;white-space:nowrap;border-bottom:1px solid #e8d5b6}
+td{padding:8px 10px;border-top:1px solid var(--line2);color:var(--t2);vertical-align:top}
+tr:hover td{background:#fdf6ec}
+/* two col */
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+/* breadth bar */
+.bar{height:9px;border-radius:5px;overflow:hidden;display:flex;background:var(--bar-mid);margin:8px 0 4px}
+.bar span{display:block;height:100%}
+.bar-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--t4)}
+/* distribution */
+.dist td:first-child{white-space:nowrap}
+.dist .mini{height:7px;border-radius:3px;background:var(--up);min-width:2px;display:inline-block;vertical-align:middle}
+.dist .mini.d{background:var(--dn)}
+/* note box */
+.note{background:#fdf4f1;border-left:3px solid var(--red);border-radius:0 6px 6px 0;
+  padding:10px 14px;font-size:13px;line-height:1.8;color:#6b4a42;margin-top:12px}
+.note b{color:var(--red);font-weight:500}
+.note.warn{border-left-color:var(--orange)}
+/* chips */
+.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;margin-right:6px;vertical-align:1px}
+.chip.g{background:#fdecea;color:#c0392b}
+.chip.b{background:#eaf2fa;color:#2563a8}
+.chip.n{background:#f4ede7;color:#7a6a60}
+.chip.p{background:#f4eefd;color:var(--purple)}
+/* ladder */
+.ladder-tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;white-space:nowrap}
+.lt3{background:#f4eefd;color:var(--purple)}
+.lt2{background:#fdeeec;color:var(--red)}
+.lt1{background:#f5ece3;color:#6b5a50}
+/* footer */
+.foot{margin-top:22px;padding:14px 20px;background:#fdf8f0;border:1px dashed var(--line);
+  border-radius:10px;font-size:12.5px;color:var(--t3);line-height:1.9}
+.foot b{color:var(--red);font-weight:500}
+.dis{margin-top:26px;font-size:11.5px;color:var(--t4);line-height:1.8;text-align:center}
+.empty{color:var(--t4);font-size:13px;padding:6px 0}
+
+/* ---------------- 响应式：平板 ---------------- */
+@media(max-width:820px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g2{grid-template-columns:minmax(0,1fr);gap:16px}
+}
+/* ---------------- 响应式：手机 ---------------- */
+@media(max-width:640px){
+  .wrap{padding:16px 12px 44px}
+  .head{padding:2px 0 16px}
+  .head h1{font-size:19px;gap:7px;letter-spacing:.3px}
+  .head h1 i{width:15px;height:15px;border-radius:3px}
+  .head .sub{font-size:13.5px;margin-top:7px}
+  .head .src{font-size:11px;line-height:1.6}
+  .kpis{gap:9px;margin-bottom:16px}
+  .kpi{padding:11px 7px;border-radius:9px}
+  .kpi .k-name{font-size:11.5px}
+  .kpi .k-val{font-size:21px;margin:3px 0 1px}
+  .kpi .k-pct{font-size:12px}
+  .kpi .k-sub{font-size:10px;line-height:1.55;margin-top:3px}
+  .sec{padding:14px 13px;border-radius:9px;margin-bottom:12px}
+  .sec>h2{font-size:15px;gap:7px;flex-wrap:wrap}
+  .sec>h2 .tag{font-size:10px;padding:2px 6px}
+  .sub-t{font-size:12.5px;margin:12px 0 6px;line-height:1.6;flex-wrap:wrap}
+  .scope-note{font-size:10px;margin-left:0;display:block;line-height:1.5}
+  table{font-size:12.5px}
+  th,td{padding:7px 8px}
+  tr:hover td{background:transparent}
+  .bar{height:8px}
+  .note{padding:9px 11px;font-size:12.5px;line-height:1.75}
+  .foot{padding:11px 13px;font-size:12px;line-height:1.85}
+  .dis{font-size:10.5px;margin-top:18px;line-height:1.7}
+  /* 文字型表格 → 纵向卡片（新闻/主线/支线/持仓/展望） */
+  table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%}
+  table.stack tr:first-child{display:none}
+  table.stack tr{border-top:1px solid var(--line2);padding:9px 0}
+  table.stack tr:nth-child(2){border-top:none}
+  table.stack td{border:none;padding:2px 0;line-height:1.7}
+  table.stack td:first-child{color:var(--t1);font-weight:500}
+  table.stack td.num{font-weight:500}
+  /* 宽表兜底：横向滑动 */
+  .tw{margin:0 -3px;padding:0 3px}
+}
+
+/* ---- 示例页顶栏：仅 GitHub Pages 首页使用，渲染器不产出这段 ---- */
+.demo-bar{background:var(--red);color:#fff;font-size:12.5px;line-height:1.6;
+  padding:9px 16px;text-align:center;letter-spacing:.2px}
+.demo-bar a{color:#fff;text-decoration:underline;text-underline-offset:2px}
+.demo-bar .sep{margin:0 7px;opacity:.5}
+@media(max-width:640px){.demo-bar{font-size:11.5px;padding:8px 12px}}
+</style>
+</head>
+<body>
+<div class="demo-bar">示例报告（2026-10-08 收盘）<span class="sep">|</span>由 <a href="https://github.com/nivance/stock-daily-review">stock-daily-review</a> 每个交易日收盘后自动生成<span class="sep">|</span><a href="https://github.com/nivance/stock-daily-review">查看源码</a></div>
+
+<div class="wrap">
+
+  <div class="head">
+    <h1><i></i>A股每日复盘报告</h1>
+    <div class="sub">2026年10月08日（周四）收盘复盘</div>
+    <div class="src">数据日期 2026-10-08 ｜ 统计口径：全市场 5556 只个股 ｜ 指数来源 eastmoney</div>
+  </div>
+
+  <div class="kpis"><div class="kpi"><div class="k-name">上证指数</div><div class="k-val num">3,811.90</div><div class="k-pct num dn">▼ -0.79%</div><div class="k-sub num">高 3,864.12 ｜ 低 3,795.37</div><div class="k-sub num">成交 8,112亿</div></div><div class="kpi"><div class="k-name">深证成指</div><div class="k-val num">12,620.90</div><div class="k-pct num dn">▼ -2.07%</div><div class="k-sub num">高 12,984.95 ｜ 低 12,540.73</div><div class="k-sub num">成交 8,709亿</div></div><div class="kpi"><div class="k-name">创业板指</div><div class="k-val num">3,036.66</div><div class="k-pct num dn">▼ -3.15%</div><div class="k-sub num">高 3,168.40 ｜ 低 3,012.03</div><div class="k-sub num">成交 4,253亿</div></div><div class="kpi"><div class="k-name">科创50</div><div class="k-val num">1,456.32</div><div class="k-pct num dn">▼ -4.82%</div><div class="k-sub num">高 1,521.46 ｜ 低 1,446.43</div><div class="k-sub num">成交 824亿</div></div></div>
+
+  <section class="sec"><h2><i></i>一、新闻与消息面<span class="tag ai">AI 归因</span></h2><div class="sub-t">● 消息面与催化（2026-10-08，收盘前 15:31–16:08 快讯窗口）</div><div class="tw"><table class="stack"><tr><th style="width:28%">事件</th><th>影响分析</th></tr><tr><td><span class="chip g">利好</span><span class="t1">布伦特原油升破 104 美元、盘中涨超 4%，地缘风险溢价抬升</span></td><td>WTI 原油期货涨 3.93% 报 91.75 美元/桶，布伦特涨 4.05% 报 104.26 美元/桶；同期一艘油轮在卡塔尔海岸附近遭弹道袭击（英 UKMTO 报告，约一个月来波斯湾深处首次）、沙特首都利雅得多次传出爆炸声、立陶宛拟提议欧盟禁止俄罗斯粮食过境。油价与地缘双催化直接推升油运运价预期与石化链景气，是当日能源链走强的核心驱动——航运 +2.46%（17 涨 / 3 跌）、航运港口 +1.93%（32 涨 / 4 跌）、油服工程 +3.50%（13 涨 / 1 跌）、油气及炼化工程 +3.71%（5 涨 / 1 跌）、石油石化 +1.85%（39 涨 / 10 跌）。反向看，油价破百也意味着输入型通胀压力上升，对中下游制造是成本利空。</td></tr><tr><td><span class="chip b">利空</span><span class="t1">摩根士丹利报告冲击光芯片链，源杰科技 20cm 跌停后回应“行业整体下跌并非个例”</span></td><td>源杰科技当日 20cm 跌停（-20%，成交额居跌停池首位），公司回应称近期光芯片企业股价波动受摩根士丹利报告影响、行业整体下跌并非公司个例、自身生产经营正常。同一时间美股光通信板块盘前走低：Coherent 跌超 3%，Lumentum、Credo 跌超 2%，康宁、迈威尔科技跌近 2%。外部报告 + 美股同链走弱形成双击，直接压制 A 股光通信与半导体方向——跌停池中长光华芯 -20%（半导体）、源杰科技 -20%（半导体）、东山精密 -10%（元件）、美格智能 -10%（通信设备）、沃格光电 -10%（光学光电）连成一条完整的科技硬件杀跌线，科创 50 因此大跌 4.82% 为全场最弱指数。</td></tr><tr><td><span class="chip b">利空</span><span class="t1">有策略师警告 AI 泡沫未来两年破裂、标普或现 2008 年来最严重大跌，港股科技同步走弱</span></td><td>伦敦一家投行市场策略主管警告 AI 交易可能很快结束并引发自全球金融危机以来最严重的市场崩盘；同时香港恒生科技指数当日跌幅扩大至 3%。外围科技股风险偏好整体受压，是 A 股成长风格（创业板指 -3.15%、科创 50 -4.82%）在节后首日集中释放抛压的情绪背景。需注意这类观点属预期性表态而非事实性事件，对盘面的影响体现为风险偏好而非基本面。</td></tr><tr><td><span class="chip n">中性</span><span class="t1">港口与煤炭 9 月经营数据向好，印证顺周期与资源链景气</span></td><td>广州港 9 月预计完成集装箱吞吐量 239.6 万标准箱（同比 +19.6%）、货物吞吐量 5130.5 万吨（同比 +12.5%）；陕西煤业 9 月自产煤销量 1340 万吨（同比 +6.18%）、总发电量同比 +41.12%。数据与当日航运港口（+1.93%）、煤炭（+2.17%，32 涨 / 2 跌）、电力（+1.27%，86 涨 / 24 跌）的走强方向一致，属基本面侧的温和正向印证，但缺乏足够的板块级爆发力。</td></tr></table></div></section>
+  <section class="sec">
+<h2><i></i>二、市场交易数据<span class="tag mix">数据 + AI</span></h2>
+<div class="g2">
+  <div>
+    <div class="sub-t">涨跌家数分布<span class="scope-note">全市场（沪深京，含北交所）口径 · 涨跌停含 ST ｜ 沪深两市口径为 涨 1634 / 跌 3465（涨停池口径 43）</span></div>
+    <div class="tw"><table><tr><td class="mu">上涨家数</td><td class="up num">1698 家（30.56%）</td></tr><tr><td class="mu">下跌家数</td><td class="dn num">3747 家（67.44%）</td></tr><tr><td class="mu">平盘</td><td class="num">111 家</td></tr><tr><td class="mu">涨停 / 跌停</td><td class="num"><span class="up">44</span> / <span class="dn">16</span> 家</td></tr><tr><td class="mu">涨跌比</td><td class="num">0.45 : 1</td></tr></table></div>
+    <div class="bar"><span style="width:30.6%;background:var(--up)"></span><span style="width:2.0%;background:var(--bar-mid)"></span><span style="width:67.4%;background:var(--dn)"></span></div>
+    <div class="bar-lbl"><span class="up">上涨 1698</span><span class="mu">平 111</span><span class="dn">下跌 3747</span></div>
+  </div>
+  <div>
+    <div class="sub-t">涨跌幅区间分布</div>
+    <div class="tw"><table class="dist"><tr><th>区间</th><th>家数</th><th>分布</th></tr><tr><td class="num">涨停</td><td class="num up">44</td><td><span class="mini" style="width:4.6%"></span></td></tr><tr><td class="num">9%~10%</td><td class="num up">24</td><td><span class="mini" style="width:2.5%"></span></td></tr><tr><td class="num">8%~9%</td><td class="num up">9</td><td><span class="mini" style="width:0.9%"></span></td></tr><tr><td class="num">7%~8%</td><td class="num up">17</td><td><span class="mini" style="width:1.8%"></span></td></tr><tr><td class="num">6%~7%</td><td class="num up">29</td><td><span class="mini" style="width:3.0%"></span></td></tr><tr><td class="num">5%~6%</td><td class="num up">38</td><td><span class="mini" style="width:4.0%"></span></td></tr><tr><td class="num">4%~5%</td><td class="num up">67</td><td><span class="mini" style="width:7.0%"></span></td></tr><tr><td class="num">3%~4%</td><td class="num up">125</td><td><span class="mini" style="width:13.1%"></span></td></tr><tr><td class="num">2%~3%</td><td class="num up">232</td><td><span class="mini" style="width:24.3%"></span></td></tr><tr><td class="num">1%~2%</td><td class="num up">442</td><td><span class="mini" style="width:46.3%"></span></td></tr><tr><td class="num">0%~1%</td><td class="num up">671</td><td><span class="mini" style="width:70.3%"></span></td></tr><tr><td class="num">平盘</td><td class="num mu">111</td><td><span class="mini" style="width:11.6%"></span></td></tr></table></div>
+  </div>
+</div>
+<div class="sub-t">核心成交数据<span class="scope-note">全市场（沪深京）口径</span></div>
+<div class="tw"><table><tr><th style="width:24%">项目</th><th style="width:26%">数值</th><th>对比</th></tr><tr><td class="mu">全市场成交额</td><td class="t1 num">1.69万亿</td><td class="num up">较上日 2,442亿</td></tr><tr><td class="mu">其中北交所</td><td class="num">124亿</td><td class="num mu">占比 0.73%</td></tr><tr><td class="mu">5日均值</td><td class="num">1.59万亿</td><td class="num up">当日 / 5日 = 106.54%</td></tr><tr><td class="mu">10日均值</td><td class="num">1.79万亿</td><td class="num dn">当日 / 10日 = 94.83%</td></tr><tr><td class="mu">20日均值</td><td class="num">1.81万亿</td><td class="num dn">当日 / 20日 = 93.40%</td></tr><tr><td class="mu">120日均值</td><td class="num">2.59万亿</td><td class="num dn">当日 / 120日 = 65.41%</td></tr><tr><td class="mu">250日均值</td><td class="num">2.42万亿</td><td class="num dn">当日 / 250日 = 70.16%</td></tr></table></div>
+<div class="note"><b>行情惯性（AI）：</b>节后首个交易日放量下跌。全市场（沪深京）成交额 16945 亿元（沪 8112 亿 + 深 8709 亿 + 北交所 124 亿），较上一交易日（9/30）放量 2442 亿元、增幅 16.8%，为 5 日均量的 106.54%、10 日均量 94.83%、20 日均量 93.40%、120 日均量 65.41%、250 日均量 70.16% —— 量能回到 5 日均量之上，但仍明显低于中长周期均量，属缩量区间上沿的放量。关键是“放量 + 普跌”的组合：全市场 5556 只个股中 1698 涨、3747 跌、111 平，涨跌比 0.45:1；涨超 5% 的仅 161 只，而跌超 5% 的多达 453 只（约为前者的 2.8 倍），其中跌 9% 以上 67 只，赚钱效应极差。涨停 43 家、跌停 13 家（全市场含 ST 口径 44 / 16），炸板 32 家，封板率仅 57.33%、炸板率 42.67%、平均炸板 1.81 次 —— 封板质量差，追高资金不愿意持股过夜。指数层面呈严格的“市值越大跌得越少”排序：科创 50 -4.82%、创业板指 -3.15%、深证成指 -2.07%、上证指数 -0.79%，是典型的高位成长杀跌、低位权重与资源承接的高低切；分市场看北交所最弱（64 涨 / 282 跌，涨跌比 0.23，远低于沪市 0.49、深市 0.45），微盘股在放量下跌日受损最重。资金迁移路径清晰：从半导体 / 光芯片 / 元件 / 算力撤出，流向电池产业链（制造端）、能源链（油运、油服、煤炭、燃气、电力）以及银行、公用事业等红利防御方向。</div>
+</section>
+  <section class="sec">
+<h2><i></i>三、主线与支线<span class="tag mix">数据 + AI</span></h2>
+<div class="sub-t">🔥 今日最强主线</div>
+<div class="tw"><table class="stack"><tr><th>主线</th><th>涨幅</th><th>核心逻辑</th><th>核心龙头</th></tr><tr><td class="t1">1. 锂电池产业链</td><td class="num up">+3.34%</td><td>广度、梯队、资金三维同时共振，是当日合力最强的方向。①涨幅：东财行业涨幅榜 Top5 中占两席 —— 蓄电池及其他电池 +5.19%（居首，7 涨 / 3 跌）、锂电专用设备 +4.98%（次席，16 涨 / 3 跌），电池板块本身 +3.34%，电池化学品 +2.85%、锂电池 +2.59%，是唯一在行业涨幅前列成链出现的产业方向。②广度（四维中最关键）：电池 88 涨 / 19 跌 = 82.2%、电池化学品 41 涨 / 3 跌 = 93.2%、锂电专用设备 84.2%、锂电池 72.7%、蓄电池及其他电池 70%，五个细分方向全部 &gt;70%，不存在龙头独舞。③梯队：涨停 8 只（全市场板块最多，占涨停总数 19%），且连板链完整 —— 时代万恒 4 板、紫竹高科 3 板、龙蟠科技 2 板、雄韬股份 / 丰元股份 / 领湃科技（20cm）/ 野马电池 / 力王股份（+29.96%，北交所 30cm 档）首板。④资金：电池板块成交额 742 亿元，较上一交易日（9/30）的 523 亿元放大 42%；电池化学品 246 亿 vs 137 亿放大 80%；蓄电池及其他电池 42 亿 vs 22 亿放大 93% —— 三项均远超全市场成交额 16.8% 的放大水平，属真实增量资金流入。缺口在第五维“明确催化”：当日快讯窗口内没有出现电池链的直接政策或产业新闻，逻辑硬度依赖资金行为而非事件驱动，这是次日必须验证的一环。按技能评分口径满足 4 条（涨幅 / 广度 / 梯队 / 资金）≥4 条，判定为主线。另需注意内部分化：中游制造集体走强而同链上游锂矿仅温和（锂 +0.86%、能源金属 +0.73%、镍 +0.66%），说明资金买的是制造端而非资源端涨价逻辑。⑤概念维度交叉验证（东财概念板块 500 条）：钠离子电池 +1.82%（59 涨 / 16 跌，广度 78.7%）、熔盐储能 +0.91%（广度 81.8%）明确共振，是制造端逻辑在概念层的落点；但固态电池 +0.82%（129 涨 / 96 跌，广度 57.3%）、锂电池概念 +0.39%（228 涨 / 203 跌，广度 52.9%）仅微涨 —— 说明本轮是**细分方向（钠电 / 储能）**的结构性行情，而非全产业链普涨，概念的“大而全”反而不强。</td><td>时代万恒（4 板）、紫竹高科（3 板）、龙蟠科技（2 板）、雄韬股份、丰元股份、领湃科技（+20%）、野马电池、力王股份（+29.96%，北交所）</td></tr><tr><td class="t1">2. 能源链（油运 / 油服 / 煤炭）</td><td class="num up">+3.71%</td><td>事件驱动型主线，催化最硬但梯队最弱。①催化：布伦特原油盘中涨超 4% 报 104.26 美元/桶、WTI 涨 3.93%，叠加波斯湾油轮遇袭与沙特利雅得爆炸声，构成明确的地缘 + 价格双催化。②涨幅：行业涨幅榜 Top5 中占三席 —— 焦炭Ⅲ / 焦炭Ⅱ +3.75%（7 涨 / 0 跌）、油气及炼化工程 +3.71%；此外油服工程 +3.50%、油田服务 +3.35%、煤化工 +2.77%、燃气 +2.62%、航运 +2.46%、炼油化工 +2.25%、煤炭 +2.17%。③广度：油服工程 92.9%（13 涨 / 1 跌）、油田服务 100%（8 涨 / 0 跌）、油气开采 100%、油气及炼化 83.3%、煤炭 94.1%（32 涨 / 2 跌）、焦炭 100%、燃气 93.5%（29 涨 / 2 跌）、航运 85.0%、航运港口 88.9%，全部 &gt;80%，广度条件优于电池链。④资金：航运成交额 111 亿 vs 上日 55 亿（放大 100%）、油服工程 42 亿 vs 18 亿（放大 136%）、航运港口 134 亿 vs 76 亿（+76%）、石油石化 158 亿 vs 95 亿（+66%）、煤炭 142 亿 vs 92 亿（+55%）、煤化工 38 亿 vs 22 亿（+72%）、燃气 44 亿 vs 27 亿（+66%），放大幅度为全市场最强的一档。⑤缺口在梯队：涨停分散在航运港口（中远海能、招商南油）、焦炭（安泰集团）、煤化工 / 化学原料（金牛化工）、燃气（国新能源）、电力（广西能源）五个互不相邻的细分，且全部为首板、零连板高度；封板质量同样堪忧 —— 招商南油盘中炸板 15 次、招商轮船炸板 36 次最终未封（收 +9.33%）、博迈科炸板 2 次未封（+8.23%）。满足涨幅 / 广度 / 资金 / 催化 4 条，判定为主线（列第二），但“广度铺开而无高度”的形态说明这是事件脉冲型资金而非趋势型资金，属五维中权重最高的梯队与催化相互抵消的结构。⑥概念维度交叉验证：资源开采概念 +2.16%（18 涨 / 8 跌，广度 69.2%）、煤化工概念 +1.62%（66 涨 / 14 跌，广度 82.5%）、可燃冰 +1.42%（广度 88.9%）、天然气 +1.38%（90 涨 / 38 跌，广度 70.3%）、油气资源 +1.31%（103 涨 / 49 跌，广度 67.8%）—— 概念层同样铺开且集中在资源 / 能源上游，印证这是全链条的广度型行情，而非单一品种脉冲。</td><td>中远海能（封单 1.80 亿）、招商南油、招商轮船（+9.33%，炸板 36 次）、安泰集团、金牛化工、国新能源、科力股份（北交所）、博迈科（炸板未封）</td></tr></table></div>
+<div class="sub-t">⚡ 次主线 / 支线</div>
+<div class="tw"><table class="stack"><tr><th>方向</th><th>涨幅</th><th>逻辑</th><th>代表股</th></tr><tr><td class="t1">红利防御（银行 / 公用事业 / 电信运营商）</td><td class="num up">+0.85%</td><td>广度极好但涨幅温和，是避险资金而非进攻资金。银行 +0.85%（37 涨 / 3 跌 = 92.5%）、股份制银行 +1.14%、国有大型银行 +0.78%（6 涨 / 0 跌）、城商行 +0.84%、农商行 +0.65%（10 涨 / 0 跌）；公用事业 +1.57%（115 涨 / 26 跌 = 81.6%）、电力 +1.27%（86 涨 / 24 跌 = 78.2%）、水力发电 +2.21%、核力发电 +2.12%、风力发电 +1.25%（16 涨 / 0 跌）；电信运营商 +1.81%（中国移动）。在放量普跌日能大面积收红，说明有资金在做低波动配置，但没有出现任何涨停 —— 缺乏进攻弹性，只能定性为支线。</td><td>浦发银行、青岛银行、沪农商行、中国移动、中国广核、桂冠电力、新能股份</td></tr><tr><td class="t1">出版 / 高标个股行情</td><td class="num mu">结构性</td><td>新华传媒 8 板（封单 17.76 亿）是全场唯一高标，但同板块的新华文轩当日直接跌停 -9.99%、出版板块内再无其他涨停 —— 典型的个股独立行情（妖股），无板块合力可言。涨停池中出版板块仅 1 只，且“1 只 + 8 板”的组合说明是资金抱团而非产业逻辑。</td><td>新华传媒（8 板，封单 17.76 亿）；反面：新华文轩（-9.99% 跌停）</td></tr><tr><td class="t1">小家电 / 房地产 / 食品饮料</td><td class="num mu">结构性</td><td>三条低位轮动线，均为个股行为、广度不足。小家电：九阳股份 4 板（封单 2.40 亿），但厨房小家电仅 +1.40%（6 涨 / 5 跌），板块内只有 1 只涨停。房地产：陆家嘴 2 板（封单 0.49 亿，盘中炸板 3 次），房产租赁经纪 +1.45% 却仅 1 涨 / 2 跌，世联行炸板 4 次未封。食品饮料：海欣食品涨停（预加工食品 +1.73%，8 涨 / 2 跌）、张裕Ａ涨停（非白酒 +1.43%，11 涨 / 4 跌）、休闲食品 +0.89%（17 涨 / 6 跌），属弱市避险型低位补涨，缺乏统一催化。</td><td>九阳股份（4 板）、陆家嘴（2 板）、海欣食品、张  裕Ａ</td></tr></table></div>
+<div class="sub-t">📉 调整方向</div>
+<div class="tw"><table class="stack"><tr><th>方向</th><th>涨幅</th><th>调整原因</th></tr><tr><td class="t1">半导体 / 芯片 / 算力硬件</td><td class="num dn">-4.97%（半导体）</td><td>当日唯一“断头式”调整方向，行业跌幅榜被半导体链整体占据：分立器件 -6.36%（0 涨 / 18 跌）、集成电路制造 -5.52%（1 涨 / 7 跌）、模拟芯片设计 -5.4%（1 涨 / 35 跌）、数字芯片设计 -4.99%（1 涨 / 54 跌）、半导体 -4.97%（8 涨 / 179 跌，广度仅 4.3%）、光学元件 -4.94%（广度 3.7%）、半导体材料 -4.6%（2 涨 / 30 跌）、半导体设备 -4.0%（3 涨 / 22 跌）。概念层同步验证：光通信模块 -4.55%（5 涨 / 114 跌，广度 4.2%）、半导体概念 -3.15%（69 涨 / 463 跌）、第三代半导体 -2.77%、算力概念 -2.03%（34 涨 / 212 跌）、高带宽内存 -4.24%；通信设备 -3.2%（10 涨 / 80 跌）成交额 1171 亿元居全市场前列，与消费电子 -2.72%、软件开发 -2.22% 构成科技硬件整体杀跌。科创 50 -4.82% 为全场最弱指数。跌停池中科技硬件链占绝对多数：长光华芯 -20%、源杰科技 -20%（均属半导体）、东山精密 -10%（元件，成交额 9.19 亿居跌停池首位）、美格智能 -10%（通信设备）、沃格光电 -10%（光学光电）。驱动为外部报告（摩根士丹利冲击光芯片）+ 美股光通信盘前走低（Coherent 跌超 3%）+ AI 泡沫论，属估值与情绪双杀，而非内生产业逻辑变化 —— 源杰科技已明确回应“行业整体下跌并非公司个例，生产经营正常”。</td></tr><tr><td class="t1">化学制药 / 创新药</td><td class="num dn">-2.71%（创新药）</td><td>上一交易日（9/30）医药是全场第一主线（医药生物 +2.73%，创新药 195 涨 / 14 跌、CRO 45 涨 / 5 跌），仅一个交易日后即全线退潮：创新药 -2.71%（31 涨 / 177 跌，广度 14.9%）、化学制药 -1.83%（34 涨 / 121 跌，广度 21.9%）、其他生物制品 -4.77%（4 涨 / 35 跌）；丽珠集团 -10%、艾力斯 -20%（成交额 2.92 亿）双双跌停。这是典型的“主线一日游”证伪：此前的核心判断（广度满分但梯队只有首板、短板在连板晋级率）在本次得到验证 —— 缺乏连板共识的方向在资金切换时最先被抛售。</td></tr><tr><td class="t1">汽车零部件 / 商用车</td><td class="num dn">-1.53%（汽车零部件）</td><td>汽车零部件 -1.53%（61 涨 / 216 跌，广度 22.0%）、其他汽车零部件 -1.29%（15 涨 / 41 跌，广度 26.8%）、商用车 -1.59%（4 涨 / 10 跌）全线走弱。跌停池中汽车链占 3 席：均胜电子 -10%（成交额 3.95 亿）、雪龙集团 -9.99%、江淮汽车 -10%（成交额 9.79 亿，跌停池第二大）。9/30 该方向曾以 4 只涨停位列全市场最多（襄阳轴承 4 板），本次全面退潮，是前期游资题材接力的资金撤离。</td></tr><tr><td class="t1">北交所 / 微盘股</td><td class="num dn">-4.69%（百元股）</td><td>北交所 348 只个股中 64 涨 / 282 跌 / 2 平，涨跌比 0.23，为沪（0.49）、深（0.45）两市之外最弱的一档；概念层的高价高波动品种同样重挫 —— 百元股 -4.69%（23 涨 / 190 跌）、AI 手机 -4.64%（0 涨 / 31 跌）。在全市场放量下跌、封板率仅 57.33% 的环境下，微盘与高波动标的的流动性折价被放大；当日北交所仅 1 只涨停（力王股份，电池链）。</td></tr></table></div>
+<div class="g2" style="margin-top:16px">
+  <div><div class="sub-t">📊 行业涨幅榜（硬数据）</div><div class="tw"><table><tr><th>板块</th><th>涨幅</th><th>内部涨跌</th><th>领涨股</th></tr><tr><td>蓄电池及其他电池</td><td class="num up">+5.19%</td><td class="mu num">7涨/3跌</td><td class="mu">雄韬股份</td></tr><tr><td>锂电专用设备</td><td class="num up">+4.98%</td><td class="mu num">16涨/3跌</td><td class="mu">尚水智能</td></tr><tr><td>焦炭Ⅲ</td><td class="num up">+3.75%</td><td class="mu num">7涨/0跌</td><td class="mu">安泰集团</td></tr><tr><td>焦炭Ⅱ</td><td class="num up">+3.75%</td><td class="mu num">7涨/0跌</td><td class="mu">安泰集团</td></tr><tr><td>油气及炼化工程</td><td class="num up">+3.71%</td><td class="mu num">5涨/1跌</td><td class="mu">博迈科</td></tr><tr><td>油服工程</td><td class="num up">+3.50%</td><td class="mu num">13涨/1跌</td><td class="mu">科力股份</td></tr><tr><td>油田服务</td><td class="num up">+3.35%</td><td class="mu num">8涨/0跌</td><td class="mu">科力股份</td></tr><tr><td>电池</td><td class="num up">+3.34%</td><td class="mu num">88涨/19跌</td><td class="mu">紫竹高科</td></tr></table></div></div>
+  <div><div class="sub-t">📉 行业跌幅榜（硬数据）</div><div class="tw"><table><tr><th>板块</th><th>涨幅</th><th>内部涨跌</th><th>领涨股</th></tr><tr><td>分立器件</td><td class="num dn">-6.36%</td><td class="mu num">0涨/18跌</td><td class="mu">ST派瑞</td></tr><tr><td>集成电路制造</td><td class="num dn">-5.52%</td><td class="mu num">1涨/7跌</td><td class="mu">燧原科技-U</td></tr><tr><td>模拟芯片设计</td><td class="num dn">-5.40%</td><td class="mu num">1涨/35跌</td><td class="mu">慧智微-U</td></tr><tr><td>数字芯片设计</td><td class="num dn">-4.99%</td><td class="mu num">1涨/54跌</td><td class="mu">乐鑫科技</td></tr><tr><td>半导体</td><td class="num dn">-4.97%</td><td class="mu num">8涨/179跌</td><td class="mu">深科达</td></tr><tr><td>光学元件</td><td class="num dn">-4.94%</td><td class="mu num">1涨/26跌</td><td class="mu">五方光电</td></tr><tr><td>其他生物制品</td><td class="num dn">-4.77%</td><td class="mu num">4涨/35跌</td><td class="mu">四环生物</td></tr><tr><td>半导体材料</td><td class="num dn">-4.60%</td><td class="mu num">2涨/30跌</td><td class="mu">和林微纳</td></tr></table></div></div>
+</div>
+</section>
+  <section class="sec">
+<h2><i></i>四、涨停梯队分析<span class="tag mix">数据 + AI</span></h2>
+<div class="g2">
+  <div>
+    <div class="sub-t">涨停整体画像（沪深涨停池，打板口径）</div>
+    <div class="tw"><table><tr><td class="mu">涨停家数（沪深池）</td><td><span class="up num">43</span> 家 ｜ 全市场含 ST <span class="up num">44</span> 家</td></tr><tr><td class="mu">跌停家数（沪深池）</td><td><span class="dn num">13</span> 家 ｜ 全市场含 ST <span class="dn num">16</span> 家</td></tr><tr><td class="mu">炸板家数</td><td><span class="num">32</span> 家</td></tr><tr><td class="mu">封板率</td><td><span class="num">57.3%</span> ｜ 炸板率 <span class="num">42.7%</span></td></tr><tr><td class="mu">平均炸板次数</td><td><span class="num">1.81</span> 次/涨停股</td></tr></table></div>
+  </div>
+  <div>
+    <div class="sub-t">涨停板块分布</div>
+    <div class="tw"><table><tr><th>板块</th><th>涨停数</th><th>最高板</th><th>代表股</th></tr><tr><td class="t1">电池</td><td class="num up">8</td><td class="num">4 板</td><td class="mu">时代万恒／紫竹高科／龙蟠科技／雄韬股份／丰元股份</td></tr><tr><td class="t1">航运港口</td><td class="num up">2</td><td class="num">1 板</td><td class="mu">中远海能／招商南油</td></tr><tr><td class="t1">专用设备</td><td class="num up">2</td><td class="num">1 板</td><td class="mu">山东墨龙／快意电梯</td></tr><tr><td class="t1">服装家纺</td><td class="num up">2</td><td class="num">1 板</td><td class="mu">乔治白／红豆股份</td></tr><tr><td class="t1">化学制品</td><td class="num up">2</td><td class="num">1 板</td><td class="mu">世名科技／卓越新能</td></tr><tr><td class="t1">化学制药</td><td class="num up">2</td><td class="num">1 板</td><td class="mu">华北制药／联环药业</td></tr><tr><td class="t1">出版</td><td class="num up">1</td><td class="num">8 板</td><td class="mu">新华传媒</td></tr><tr><td class="t1">小家电</td><td class="num up">1</td><td class="num">4 板</td><td class="mu">九阳股份</td></tr></table></div>
+  </div>
+</div>
+<div class="sub-t">🏆 涨停梯队结构</div>
+<div class="tw"><table class="stack"><tr><th style="width:12%">梯队</th><th style="width:11%">数量</th><th style="width:46%">代表股</th><th>判断</th></tr><tr><td><span class="ladder-tag lt3">三板以上</span></td><td class="num">≈7 只</td><td class="mu">新华传媒(8板)／九阳股份(4板)／时代万恒(4板)／园林股份(3板)／紫竹高科(3板)／传艺科技(3板)</td><td>7 只，分散在 7 个不同行业，高标同样缺乏板块合力。最高标新华传媒 8 板（出版，封单 17.76 亿）与当日主线（电池、能源）完全脱节；其余为九阳股份 4 板（小家电，封单 2.40 亿）、时代万恒 4 板（电池，封单 1.26 亿）、园林股份 3 板（基础建设，封单 1.51 亿）、紫竹高科 3 板（电池）、传艺科技 3 板（消费电子）、上海洗霸 3 板（环境治理，盘中炸板 7 次、封单仅 0.14 亿）。7 只高标中指属主线方向的只有电池的 2 只。</td></tr><tr><td><span class="ladder-tag lt2">二板</span></td><td class="num">≈3 只</td><td class="mu">兴业股份(2板)／陆家嘴(2板)／龙蟠科技(2板)</td><td>3 只，兴业股份（塑料，封单 0.76 亿）、陆家嘴（房地产，炸板 3 次）、龙蟠科技（电池，炸板 8 次、封单仅 0.12 亿）。数量少且封板质量普遍不佳，二板晋级率偏低是本日梯队最薄弱的一环。</td></tr><tr><td><span class="ladder-tag lt1">首板</span></td><td class="num">≈33 只</td><td class="mu">三柏硕(1板)／中远海能(1板)／雄韬股份(1板)／山东墨龙(1板)／必得科技(1板)／金时科技(1板)／快意电梯(1板)／海欣食品(1板)</td><td>33 只，占涨停总数（43 家）的 76.7%，是绝对主体。结构上两条主线贡献了主要首板：电池链 5 只（雄韬股份、丰元股份、领湃科技 20cm、野马电池、力王股份 30cm）、能源链 6 只（中远海能、招商南油、安泰集团、金牛化工、国新能源、广西能源）。「主线方向高度集中在首板」意味着资金只完成了第一波低位建仓，尚未形成连板共识 —— 明日首板晋级率是判断主线能否延续的第一观察点。</td></tr></table></div>
+<div class="note"><b>逻辑迷雾 vs 情绪炒作：</b>当日是“逻辑不够硬 + 情绪不给力”的双弱格局，而非以往的清晰分离。逻辑端：电池链（广度 70%–93%、梯队 4/3/2/首板完整、成交额放大 42%–93%）与能源链（广度普遍 &gt;80%、成交额放大 55%–136%、催化最硬）各有 4 项条件达标，但两者都缺一环 —— 电池缺“明确催化”，能源缺“连板高度”，因此都无法形成高置信度的持续进攻主线。情绪端：全场封板率 57.33%、炸板率 42.67%、跌停 13 家，最高标新华传媒 8 板封单已从上一交易日的 19.88 亿回落至 17.76 亿（-10.7%），同板块新华文轩直接跌停，高标既无板块承接、又在缩水，风险显著大于机会。操作含义：应聚焦两条主线的首板 / 二板做低吸与晋级验证，不参与高标接力；对半导体 / 光通信等急跌方向的反弹只作减仓窗口。</div>
+</section>
+  <section class="sec"><h2><i></i>五、持仓收益追踪<span class="tag data">硬数据</span></h2><div class="empty">— 未配置持仓清单：在 <code>data/holdings.json</code> 中按 <code>[{"secid":"0.300145","name":"南方泵业","cost":..}]</code> 格式添加即可自动追踪 —</div></section>
+  <section class="sec">
+<h2><i></i>六、后市展望<span class="tag ai">AI 判断</span></h2>
+<div class="sub-t">短期（1 周内）</div>
+<div class="tw"><table class="stack"><tr><th>方向</th><th>预期</th><th>核心逻辑</th></tr><tr><td class="t1">锂电池产业链</td><td class="num up">看首板晋级率</td><td>主线地位由广度（五细分全部 &gt;70%）与梯队（4/3/2 板成链）确认，但缺明确催化。明日核心看三件事：一是首板 5 只（雄韬股份、丰元股份、领湃科技、野马电池、力王股份）与龙蟠科技 2 板的晋级率，若晋级率 &gt;50% 则主线确认、可继续持有；二是时代万恒 4 板能否续板（决定板块高度能否打开）；三是能否出现电池链自身的政策或产业催化 —— 若仍无催化，纯资金驱动的合力一旦遇到缩量就会快速散掉。</td></tr><tr><td class="t1">能源链（油运 / 油服 / 煤炭）</td><td class="num up">看油价与地缘延续</td><td>唯一变量是布伦特原油能否站稳 100 美元上方以及波斯湾局势是否继续发酵。该方向今日广度与资金放大均为全市场最强（成交额放大 55%–136%），但全为首板、无连板高度，且招商南油炸板 15 次、招商轮船炸板 36 次未封，封板质量差。事件驱动型方向的规律是涨得快、退得也快：不宜追高，宜等原油价格确认后低吸油运龙头。</td></tr><tr><td class="t1">半导体 / 光通信 / 算力</td><td class="num dn">反弹即减压</td><td>科创 50 单日 -4.82%、内部出现两只 20cm 跌停（长光华芯、源杰科技），属外部报告引发的高位一次性杀跌，技术性反弹概率不低。但其主线地位当日已被电池与能源取代，且筹码结构受损、港股恒生科技同日跌 3%，反弹属减仓窗口而非抄底窗口。真正需要等待的是缩量企稳 + 新的产业催化落地。</td></tr><tr><td class="t1">高标（新华传媒 8 板）</td><td class="num dn">风险大于机会</td><td>8 板高标与两条主线完全脱节，封单已从 19.88 亿回落至 17.76 亿，同板块新华文轩已跌停，缺乏承接。此类标的的风险特征是非线性的：封单在则横盘，封单一旦松动即连续跌停，在封板率仅 57.33% 的环境下性价比极低。</td></tr></table></div>
+<div class="sub-t">中期（1 个月 ~ 2 个月）</div>
+<div class="tw"><table class="stack"><tr><th>方向</th><th>核心逻辑</th></tr><tr><td class="t1">锂电池产业链（中游制造）</td><td>中游制造（电池 +3.34%、电池化学品 +2.85%、锂电专用设备 +4.98%）在放量日集体走强，与上游锂矿（锂 +0.86%、能源金属 +0.73%、镍 +0.66%）明显分化，说明资金选择的是制造端而非资源端价格逻辑。若成交额能连续站稳 1.7 万亿以上并使板块成交额继续放大，具备成为节后中期主线的条件；验证窗口是首板晋级率与三季报业绩兑现。</td></tr><tr><td class="t1">能源链 / 红利防御</td><td>输入型通胀（油价破 104 美元）叠加弱市避险需求，使煤炭（广度 94.1%）、油运（85%）、电力（78.2%）、银行（92.5%）、公用事业（81.6%）同时大面积收红，是当前环境下胜率较高但弹性有限的配置方向。风险在于地缘情绪一旦降温，油运的高波动会快速回吐；煤炭与电力则更依赖长协价格与用电数据。</td></tr><tr><td class="t1">大盘与成交额</td><td>成交额 16945 亿元，为 20 日均量的 93.40%、120 日均量的 65.41%、250 日均量的 70.16%，仍处缩量区间上沿。放量下跌意味着抛压得到释放但增量资金未入场；指数分化极大（上证 3811.9 vs 科创 50 1456.32），短期仍是结构性高低切行情。关键观察是成交额能否连续 3 日站上 1.7 万亿，以及跌停家数能否收敛到 5 家以内。</td></tr><tr><td class="t1">科技成长（半导体 / AI 算力 / 光通信）</td><td>中期产业逻辑（国产替代、算力扩张、第三代半导体）并未被破坏，本轮回调源于外部报告与情绪冲击而非产业变化，属估值消化。海外仍有正向映射（美股碳化硅龙头 Wolfspeed 获美国国防部 15 亿美元有条件贷款承诺、盘前大涨近 18%），但当日未在 A 股生效。需以时间换空间：等待缩量企稳与广度同步修复后再重新评估。</td></tr></table></div>
+</section>
+
+  <div class="foot">📌 数据截至 2026-10-08 收盘（节后首个交易日），采集于 2026-10-08 22:47。行情数据均来自当日真实采集：指数与板块来自东财 push2（行业板块 496 条、概念板块 500 条，涨幅榜与跌幅榜齐全），涨跌家数来自新浪全市场逐股统计（沪深京 5556 只，含北交所、含 ST），涨停 / 跌停为收盘封板价自算，成交额历史来自同花顺序列（400 天）。新闻窗口为收盘前 15:31–16:08 的快讯流，非全天完整新闻（东财快讯接口只提供实时流，无法回溯，此处刻意保留与该报告同一收盘时点的窗口）。</div>
+
+  <div class="dis">
+    本报告由 WorkBuddy 自动生成，数据来自公开行情接口，仅用于个人复盘研究，不构成任何投资建议。<br>
+    生成时间 2026-10-08 22:53 ｜ 数据源：东方财富公开行情接口 / 同花顺 / 腾讯行情
+  </div>
+</div>
+</body>
+</html>

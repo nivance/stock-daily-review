@@ -6,6 +6,8 @@
 
 ## 效果
 
+👉 **[在线效果示例](https://nivance.github.io/stock-daily-review/)** —— 仓库根目录的 `index.html` 即一份完整报告（示例数据为 2026-10-08 收盘），可直接用手机打开看移动端效果。
+
 一份报告包含：四大指数行情、涨跌家数与区间分布、全市场成交额（含历史均量对比）、涨停/跌停/炸板池与连板梯队、行业与概念板块榜、消息面催化、主线/支线/调整方向判定、后市展望（短期 + 中期）。
 
 ## 快速开始
@@ -46,6 +48,7 @@ stock-daily-review/
 ├── SKILL.md                    # 完整 skill 说明（流程、判定规则、数据源与踩坑记录）
 ├── config.json                 # 数据源主机池、限速、指数清单、持仓
 ├── requirements.txt
+├── index.html                  # GitHub Pages 示例首页（一份真实报告的静态副本）
 ├── scripts/
 │   ├── paths.py                # 路径解析：代码根 / 数据根分离（改路径只动这里）
 │   ├── fetch_report_data.py    # 采集层
