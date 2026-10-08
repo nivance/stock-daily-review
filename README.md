@@ -10,6 +10,31 @@
 
 一份报告包含：四大指数行情、涨跌家数与区间分布、全市场成交额（含历史均量对比）、涨停/跌停/炸板池与连板梯队、行业与概念板块榜、消息面催化、主线/支线/调整方向判定、后市展望（短期 + 中期）。
 
+## 安装
+
+**前置**：Python 3.9+（不需要 Node）。
+
+本项目是 **skill 包**（Python 脚本 + `SKILL.md` 流程说明），**不发布到 npm 或 PyPI** —— 仓库里既没有 `package.json` 也没有 `pyproject.toml`，因此 `npx` 与 `pip install` 都用不上（实测 `npx github:nivance/stock-daily-review` 会报 `Could not read package.json`）。安装的含义就是「把目录放到 agent 能找到的 skills 位置」。
+
+### 方式一：作为 skill 安装（推荐，agent 可自动调用）
+
+```bash
+git clone https://github.com/nivance/stock-daily-review.git ~/.workbuddy/skills/stock-daily-review
+```
+
+Claude Code 等其它 agent 框架同理，放进各自约定的 skills 目录即可。不想用 git 就下载 ZIP 解压过去，**目录名保持 `stock-daily-review`**。
+
+### 方式二：clone 到任意目录直接用
+
+脚本用 `__file__` 自定位、**与 cwd 无关**，不放进 skills 目录也能跑：
+
+```bash
+git clone https://github.com/nivance/stock-daily-review.git ~/stock-daily-review
+python ~/stock-daily-review/scripts/fetch_report_data.py --check-today
+```
+
+想把源码放系统盘之外、只在 skills 目录留个映射也可以：Windows 用 PowerShell `New-Item -ItemType SymbolicLink`（或 `mklink /D`）建目录符号链接，Linux / macOS 用 `ln -s`。
+
 ## 快速开始
 
 ```bash
