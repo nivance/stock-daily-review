@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="format-detection" content="telephone=no">
+<title>{{TITLE}}</title>
+<style>
+:root{
+  --bg:#fbf1e3; --panel:#fffdf9; --panel2:#fff9ef; --line:#ecd9bd; --line2:#f4e9d8;
+  --t1:#2a1a14; --t2:#5a463e; --t3:#8b7568; --t4:#a89285;
+  --red:#c8102e; --red-l:#e23a4e; --gold:#c99a1f; --gold-d:#f7edd8; --th:#8a6a2a;
+  --up:#d32b28; --dn:#17915a; --orange:#c9770f; --purple:#7c4ddb; --bar-mid:#f0e2cc;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t2);overflow-x:hidden;overflow-wrap:break-word;
+  font:14px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+.up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--t3)}.t1{color:var(--t1)}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+/* header */
+.head{text-align:center;padding:8px 0 22px}
+.head h1{display:flex;align-items:center;justify-content:center;gap:10px;margin:0;
+  font-size:24px;font-weight:600;color:var(--t1);letter-spacing:.5px}
+.head h1 i{display:inline-block;width:20px;height:20px;background:var(--red);border-radius:4px;flex:none}
+.head .sub{margin-top:10px;font-size:15px;color:var(--t2)}
+.head .src{margin-top:6px;font-size:12px;color:var(--t4)}
+/* kpi */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 12px;text-align:center}
+.kpi .k-name{font-size:12px;color:var(--t3)}
+.kpi .k-val{font-size:26px;font-weight:600;color:var(--t1);margin:4px 0 2px;letter-spacing:-.5px}
+.kpi .k-pct{font-size:13px;font-weight:500}
+.kpi .k-sub{font-size:11px;color:var(--t4);margin-top:4px}
+/* section */
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+.sec>h2{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:16px;font-weight:600;color:var(--t1)}
+.sec>h2 i{display:inline-block;width:4px;height:16px;border-radius:2px;background:var(--red);flex:none}
+.sec>h2 .tag{margin-left:auto;font-size:11px;font-weight:500;padding:2px 8px;border-radius:5px;flex:none}
+.tag.data{background:#f7edd8;color:#a67c12}
+.tag.ai{background:#f4eefd;color:var(--purple)}
+.tag.mix{background:#eef7e6;color:#4d8b1f}
+.sub-t{font-size:13px;font-weight:500;color:var(--red);margin:14px 0 7px;display:flex;align-items:center;gap:6px}
+.sub-t:first-of-type{margin-top:0}
+.scope-note{font-size:11px;color:var(--t3);font-weight:400;margin-left:8px}
+/* table */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--gold-d);color:var(--th);text-align:left;font-weight:500;padding:8px 10px;white-space:nowrap;border-bottom:1px solid #e8d5b6}
+td{padding:8px 10px;border-top:1px solid var(--line2);color:var(--t2);vertical-align:top}
+tr:hover td{background:#fdf6ec}
+/* two col */
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+/* breadth bar */
+.bar{height:9px;border-radius:5px;overflow:hidden;display:flex;background:var(--bar-mid);margin:8px 0 4px}
+.bar span{display:block;height:100%}
+.bar-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--t4)}
+/* distribution */
+.dist td:first-child{white-space:nowrap}
+.dist .mini{height:7px;border-radius:3px;background:var(--up);min-width:2px;display:inline-block;vertical-align:middle}
+.dist .mini.d{background:var(--dn)}
+/* note box */
+.note{background:#fdf4f1;border-left:3px solid var(--red);border-radius:0 6px 6px 0;
+  padding:10px 14px;font-size:13px;line-height:1.8;color:#6b4a42;margin-top:12px}
+.note b{color:var(--red);font-weight:500}
+.note.warn{border-left-color:var(--orange)}
+/* chips */
+.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;margin-right:6px;vertical-align:1px}
+.chip.g{background:#fdecea;color:#c0392b}
+.chip.b{background:#eaf2fa;color:#2563a8}
+.chip.n{background:#f4ede7;color:#7a6a60}
+.chip.p{background:#f4eefd;color:var(--purple)}
+/* ladder */
+.ladder-tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;white-space:nowrap}
+.lt3{background:#f4eefd;color:var(--purple)}
+.lt2{background:#fdeeec;color:var(--red)}
+.lt1{background:#f5ece3;color:#6b5a50}
+/* footer */
+.foot{margin-top:22px;padding:14px 20px;background:#fdf8f0;border:1px dashed var(--line);
+  border-radius:10px;font-size:12.5px;color:var(--t3);line-height:1.9}
+.foot b{color:var(--red);font-weight:500}
+.dis{margin-top:26px;font-size:11.5px;color:var(--t4);line-height:1.8;text-align:center}
+.empty{color:var(--t4);font-size:13px;padding:6px 0}
+
+/* ---------------- 响应式：平板 ---------------- */
+@media(max-width:820px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g2{grid-template-columns:minmax(0,1fr);gap:16px}
+}
+/* ---------------- 响应式：手机 ---------------- */
+@media(max-width:640px){
+  .wrap{padding:16px 12px 44px}
+  .head{padding:2px 0 16px}
+  .head h1{font-size:19px;gap:7px;letter-spacing:.3px}
+  .head h1 i{width:15px;height:15px;border-radius:3px}
+  .head .sub{font-size:13.5px;margin-top:7px}
+  .head .src{font-size:11px;line-height:1.6}
+  .kpis{gap:9px;margin-bottom:16px}
+  .kpi{padding:11px 7px;border-radius:9px}
+  .kpi .k-name{font-size:11.5px}
+  .kpi .k-val{font-size:21px;margin:3px 0 1px}
+  .kpi .k-pct{font-size:12px}
+  .kpi .k-sub{font-size:10px;line-height:1.55;margin-top:3px}
+  .sec{padding:14px 13px;border-radius:9px;margin-bottom:12px}
+  .sec>h2{font-size:15px;gap:7px;flex-wrap:wrap}
+  .sec>h2 .tag{font-size:10px;padding:2px 6px}
+  .sub-t{font-size:12.5px;margin:12px 0 6px;line-height:1.6;flex-wrap:wrap}
+  .scope-note{font-size:10px;margin-left:0;display:block;line-height:1.5}
+  table{font-size:12.5px}
+  th,td{padding:7px 8px}
+  tr:hover td{background:transparent}
+  .bar{height:8px}
+  .note{padding:9px 11px;font-size:12.5px;line-height:1.75}
+  .foot{padding:11px 13px;font-size:12px;line-height:1.85}
+  .dis{font-size:10.5px;margin-top:18px;line-height:1.7}
+  /* 文字型表格 → 纵向卡片（新闻/主线/支线/持仓/展望） */
+  table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%}
+  table.stack tr:first-child{display:none}
+  table.stack tr{border-top:1px solid var(--line2);padding:9px 0}
+  table.stack tr:nth-child(2){border-top:none}
+  table.stack td{border:none;padding:2px 0;line-height:1.7}
+  table.stack td:first-child{color:var(--t1);font-weight:500}
+  table.stack td.num{font-weight:500}
+  /* 宽表兜底：横向滑动 */
+  .tw{margin:0 -3px;padding:0 3px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1><i></i>{{TITLE}}</h1>
+    <div class="sub">{{SUBTITLE}}</div>
+    <div class="src">{{SOURCE_NOTE}}</div>
+  </div>
+
+  <div class="kpis">{{INDEX_CARDS}}</div>
+
+  {{SEC_NEWS}}
+  {{SEC_MARKET}}
+  {{SEC_MAINLINE}}
+  {{SEC_LIMITUP}}
+  {{SEC_HOLDINGS}}
+  {{SEC_OUTLOOK}}
+
+  <div class="foot">{{FOOTER_NOTE}}</div>
+
+  <div class="dis">
+    本报告由 WorkBuddy 自动生成，数据来自公开行情接口，仅用于个人复盘研究，不构成任何投资建议。<br>
+    生成时间 {{GENERATED_AT}} ｜ 数据源：{{DATA_SOURCES}}
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# A股每日复盘skill · 运行依赖
+# 安装：pip install -r requirements.txt
+# Python 3.9+
+
+requests>=2.28          # 行情接口请求
+akshare>=1.12           # 全市场个股行情/代码表（新浪、东财源）
+pandas>=1.5             # akshare 返回值处理
+lxml>=4.9               # akshare 网页解析
+beautifulsoup4>=4.11    # akshare 网页解析

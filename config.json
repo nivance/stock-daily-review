@@ -1,0 +1,24 @@
+{
+  "settings": {
+    "min_interval_sec": 1.6,
+    "retries": 3,
+    "retry_wait_sec": 4,
+    "timeout_sec": 15,
+    "em_hosts": ["push2.eastmoney.com", "push2test.eastmoney.com", "push2delay.eastmoney.com"],
+    "em_his_hosts": ["push2his.eastmoney.com", "push2.eastmoney.com"],
+    "amount_min_yi": 1000,
+    "bj_amount_min_yi": 20,
+    "amount_cache": "data/cache/index_amount_series.json",
+    "bj_amount_cache": "data/cache/bj_amount_series.json",
+    "bj_secid": "0.899050",
+    "bj_kline_hosts": ["push2his.eastmoney.com", "0.push2his.eastmoney.com", "push2test.eastmoney.com"],
+    "history_keep_days": 400
+  },
+  "indices": [
+    {"secid": "1.000001", "code": "sh000001", "name": "上证指数"},
+    {"secid": "0.399001", "code": "sz399001", "name": "深证成指"},
+    {"secid": "0.399006", "code": "sz399006", "name": "创业板指"},
+    {"secid": "1.000688", "code": "sh000688", "name": "科创50"}
+  ],
+  "holdings": []
+}
