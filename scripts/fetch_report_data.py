@@ -3,7 +3,7 @@
 
 设计要点
   1. 默认绕过系统代理（本机/企业常见的 127.0.0.1:xxxx 本地代理会污染 requests；
-     如需走代理设 ASHARE_REVIEW_TRUST_ENV=1）
+     如需走代理设 STOCK_REVIEW_TRUST_ENV=1）
   2. 全局限速（默认 1.6s/请求），避免把 IP 打进东财黑名单
   3. 请求失败自动重试 + 指数退避
   4. 多源降级：东财 push2 主域被封时自动切 push2test / push2delay；
@@ -11,7 +11,7 @@
   5. 输出结构化快照 <数据根>/data/history/<date>.json，供渲染层与历史均值计算复用
 
 数据根（data/ 与 out/ 的存放处）
-  $ASHARE_REVIEW_HOME  >  默认 ~/.ashare-review   （见 paths.py）
+  $STOCK_REVIEW_HOME  >  默认 ~/.stock-review   （见 paths.py）
 
 用法（与 cwd 无关，可用任意已装依赖的 Python + 绝对路径调用）
   python fetch_report_data.py --show-paths       # 运行环境自检（路径/依赖/Python），首次先跑这个
@@ -47,8 +47,8 @@ except ImportError:  # 缺依赖时先降级为 None，让 --show-paths 仍可�
 
 # ---------- 环境修补：默认绕过系统代理 ----------
 # 本机与企业网络常配 127.0.0.1:xxxx 本地代理，会污染 requests 导致行情接口全挂，
-# 故默认关闭 trust_env。如需走系统代理，设 ASHARE_REVIEW_TRUST_ENV=1。
-if requests is not None and (os.environ.get("ASHARE_REVIEW_TRUST_ENV") or "").strip().lower() not in (
+# 故默认关闭 trust_env。如需走系统代理，设 STOCK_REVIEW_TRUST_ENV=1。
+if requests is not None and (os.environ.get("STOCK_REVIEW_TRUST_ENV") or "").strip().lower() not in (
         "1", "true", "yes", "on"):
     _orig_sess_init = requests.Session.__init__
 

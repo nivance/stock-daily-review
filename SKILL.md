@@ -43,8 +43,8 @@ stock-daily-review/
 
 优先级（见 `scripts/paths.py`）：
 
-1. 环境变量 **`ASHARE_REVIEW_HOME`** —— 指向任意可写目录
-2. 默认 **`~/.ashare-review`**
+1. 环境变量 **`STOCK_REVIEW_HOME`** —— 指向任意可写目录
+2. 默认 **`~/.stock-review`**
 
 数据根**不允许**落在 skill 目录内（脚本会直接报错退出），避免运行期数据混进 skill 包。
 
@@ -54,18 +54,18 @@ stock-daily-review/
 python scripts/fetch_report_data.py --show-paths
 ```
 
-例：把数据放到 `D:/ashare-data`（Linux/macOS 同理，用 `export`）：
+例：把数据放到 `D:/stock-data`（Linux/macOS 同理，用 `export`）：
 
 ```bash
-# Windows PowerShell:  $env:ASHARE_REVIEW_HOME = "D:/ashare-data"
-# Windows CMD:         set ASHARE_REVIEW_HOME=D:/ashare-data
-export ASHARE_REVIEW_HOME=D:/ashare-data
+# Windows PowerShell:  $env:STOCK_REVIEW_HOME = "D:/stock-data"
+# Windows CMD:         set STOCK_REVIEW_HOME=D:/stock-data
+export STOCK_REVIEW_HOME=D:/stock-data
 ```
 
 ## 环境准备
 
 - Python **3.9+**（开发环境 3.13），跨平台（Windows / Linux / macOS），**不需要任何账号或密钥**
-- 网络：需能访问东财 / 同花顺 / 腾讯 / 新浪的公开行情接口。**默认绕过系统代理**（本地代理常污染请求）；企业网络必须走代理时设 `ASHARE_REVIEW_TRUST_ENV=1`
+- 网络：需能访问东财 / 同花顺 / 腾讯 / 新浪的公开行情接口。**默认绕过系统代理**（本地代理常污染请求）；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`
 - Windows 建议先 `set PYTHONIOENCODING=utf-8`（脚本内部已做 stdout 重编码，加一层更稳）
 
 ### 安装依赖（二选一）
@@ -75,8 +75,8 @@ export ASHARE_REVIEW_HOME=D:/ashare-data
 python -m pip install -r <skill目录>/requirements.txt
 
 # B) 装进独立虚拟环境 —— 推荐，不动系统 Python
-python -m venv ~/.ashare-review/.venv
-~/.ashare-review/.venv/bin/pip install -r <skill目录>/requirements.txt   # Windows 用 .venv\Scripts\pip.exe
+python -m venv ~/.stock-review/.venv
+~/.stock-review/.venv/bin/pip install -r <skill目录>/requirements.txt   # Windows 用 .venv\Scripts\pip.exe
 ```
 
 这些命令不用记：**缺依赖时脚本不会抛裸 traceback，而是把"该装什么、装到哪、之后用哪个解释器"直接打印出来**（退出码 2）。
@@ -106,7 +106,7 @@ $PY "$SKILL_DIR/scripts/fetch_report_data.py"                  # 3) 采集 → <
 $PY "$SKILL_DIR/scripts/render_report.py" --date <日期>         # 5) 渲染 → <数据根>/out/report_<日期>.html
 ```
 
-- 数据根默认 `~/.ashare-review`，**首次运行自动创建**；空数据根首次采集约 2 分钟（联网重建 425 天成交额历史等缓存），之后复用缓存、次日运行约 1.5 分钟。
+- 数据根默认 `~/.stock-review`，**首次运行自动创建**；空数据根首次采集约 2 分钟（联网重建 425 天成交额历史等缓存），之后复用缓存、次日运行约 1.5 分钟。
 - 只想看数据、不渲染报告：跑到第 3 步即可（`data/ai/*.json` 缺失时报告仍可渲染，AI 模块显示「待补」）。
 
 ## 执行流程（严格按顺序）
@@ -229,7 +229,7 @@ $PY "$SKILL_DIR/scripts/backfill_history.py" --verify             # 只校验：
 - 东财 `ZDFenBu` 涨跌分布接口**忽略 date 参数、永远返回当天**，不可用于历史回填（假历史）。
 - 成交额序列有下限校验（沪深 1000 亿 / 北交所 20 亿），脏数据自动丢弃并落本地缓存；沪深缓存 ≥200 天且 7 天内更新过就不再联网。
 - 东财快讯只能取实时，**回测历史日期时新闻模块会是当天新闻**，属正常现象。
-- 本地/企业代理（如 `127.0.0.1:xxxx`）会污染 requests，脚本默认 `trust_env=False` 绕过；企业网络必须走代理时设 `ASHARE_REVIEW_TRUST_ENV=1`。
+- 本地/企业代理（如 `127.0.0.1:xxxx`）会污染 requests，脚本默认 `trust_env=False` 绕过；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`。
 
 ## 持仓追踪（可选）
 

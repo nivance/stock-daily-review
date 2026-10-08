@@ -7,8 +7,8 @@
               —— 与 skill 目录分离，位置可换、可备份、不入库
 
 DATA_ROOT 解析优先级（从高到低）：
-  1. 环境变量 ASHARE_REVIEW_HOME
-  2. 默认 ~/.ashare-review
+  1. 环境变量 STOCK_REVIEW_HOME
+  2. 默认 ~/.stock-review
 
 数据根禁止落在 skill 目录内 —— 否则每日快照、4MB+ 缓存会混进 skill 包，
 既破坏可移植性，也会在打包/分发时泄露本地数据。
@@ -23,8 +23,8 @@ CFG_PATH = os.path.join(SKILL_DIR, "config.json")
 TPL_PATH = os.path.join(SKILL_DIR, "templates", "report.html")
 
 # ---------------- 数据根（随环境走） ----------------
-ENV_HOME = "ASHARE_REVIEW_HOME"
-DEFAULT_HOME = os.path.join(os.path.expanduser("~"), ".ashare-review")
+ENV_HOME = "STOCK_REVIEW_HOME"
+DEFAULT_HOME = os.path.join(os.path.expanduser("~"), ".stock-review")
 
 # ---------------- 运行依赖 ----------------
 PY_MIN = (3, 9)
