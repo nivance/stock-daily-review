@@ -12,48 +12,40 @@
 
 ## 安装
 
-**前置**：Python 3.9+（不需要 Node）。
-
-本项目是 **skill 包**（Python 脚本 + `SKILL.md` 流程说明），**不发布到 npm 或 PyPI** —— 仓库里既没有 `package.json` 也没有 `pyproject.toml`，因此 `npx` 与 `pip install` 都用不上（实测 `npx github:nivance/stock-daily-review` 会报 `Could not read package.json`）。安装的含义就是「把目录放到 agent 能找到的 skills 位置」。
-
-### 方式一：作为 skill 安装（推荐，agent 可自动调用）
+**前置**：Python 3.9+。
 
 ```bash
-git clone https://github.com/nivance/stock-daily-review.git ~/.workbuddy/skills/stock-daily-review
+git clone https://github.com/nivance/stock-daily-review.git ~/skills/stock-daily-review
+
+cd ~/skills/stock-daily-review
+
+python -m pip install -r requirements.txt
 ```
 
-Claude Code 等其它 agent 框架同理，放进各自约定的 skills 目录即可。不想用 git 就下载 ZIP 解压过去，**目录名保持 `stock-daily-review`**。
-
-### 方式二：clone 到任意目录直接用
-
-脚本用 `__file__` 自定位、**与 cwd 无关**，不放进 skills 目录也能跑：
-
-```bash
-git clone https://github.com/nivance/stock-daily-review.git ~/stock-daily-review
-python ~/stock-daily-review/scripts/fetch_report_data.py --check-today
-```
+不想用 git 就下载 ZIP 解压过去，**目录名保持 `stock-daily-review`**。
 
 想把源码放系统盘之外、只在 skills 目录留个映射也可以：Windows 用 PowerShell `New-Item -ItemType SymbolicLink`（或 `mklink /D`）建目录符号链接，Linux / macOS 用 `ln -s`。
 
-## 快速开始
+## 脚本使用说明
 
 ```bash
-# 1) 安装依赖（Python 3.9+）
-python -m pip install -r requirements.txt
-
-# 2) 环境自检：打印 Python 版本、依赖状态、skill 目录、数据根
+# 1) 环境自检：打印 Python 版本、依赖状态、skill 目录、数据根
 python scripts/fetch_report_data.py --show-paths
 
-# 3) 是否交易日：YES / NO
+# 2) 是否交易日：YES / NO
 python scripts/fetch_report_data.py --check-today
 
-# 4) 采集数据 → <数据根>/data/history/<日期>.json
+# 3) 采集数据 → <数据根>/data/history/<日期>.json
 python scripts/fetch_report_data.py
 
-# 5) 撰写 AI 归因 → <数据根>/data/ai/<日期>.json（见 SKILL.md「第 2 步」）
-
-# 6) 渲染报告 → <数据根>/out/report_<日期>.html
+# 4) 渲染报告 → <数据根>/out/report_<日期>.html
 python scripts/render_report.py --date <YYYYMMDD>
+
+# 5) 获取历史数据
+python scripts/backfill_history.py --days 10 
+
+# 6) 用历史法复算并与当日快照比对
+python scripts/backfill_history.py --verify 
 ```
 
 **代码与数据分离**：脚本用 `__file__` 自定位，**与 cwd 无关**；所有运行期产物写到独立的数据根，默认 `~/.stock-review`，可用环境变量覆盖：
@@ -81,15 +73,6 @@ stock-daily-review/
 │   └── backfill_history.py     # 历史数据回填（手动）
 └── templates/report.html       # 报告版式（配色 / 布局 / 移动端适配）
 ```
-
-## 历史数据回填
-
-```bash
-python scripts/backfill_history.py --days 10     # 回填最近 10 个交易日
-python scripts/backfill_history.py --verify      # 用历史法复算并与当日快照比对
-```
-
-产出与当日快照**键集/键序完全一致**（252 个键）。历史不可得的字段按同构保留键位、值置 null。
 
 ## 设计要点
 

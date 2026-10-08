@@ -64,7 +64,7 @@ export STOCK_REVIEW_HOME=D:/stock-data
 
 ## 环境准备
 
-- Python **3.9+**（开发环境 3.13），跨平台（Windows / Linux / macOS），**不需要任何账号或密钥**
+- Python **3.9+**，跨平台（Windows / Linux / macOS），**不需要任何账号或密钥**
 - 网络：需能访问东财 / 同花顺 / 腾讯 / 新浪的公开行情接口。**默认绕过系统代理**（本地代理常污染请求）；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`
 - Windows 建议先 `set PYTHONIOENCODING=utf-8`（脚本内部已做 stdout 重编码，加一层更稳）
 
