@@ -676,6 +676,30 @@ def fetch_amount(date, live_total=None, bj_today=None):
 BOARD_FIELDS = "f2,f3,f6,f8,f12,f14,f104,f105,f128,f140"
 
 
+def _num(v, default=None):
+    """把东财字段安全转成数值。
+
+    实测坑：概念板块（fs=m:90+t:3）里**部分板块的 f104/f105 是字符串**（空数据时返回 "-"），
+    直接拿去做 `up / (up + dn)` 会抛 `TypeError: unsupported operand type(s) for /: 'str' and 'str'`，
+    导致整个概念板块榜为空。行业板块（t:2）通常返回 int，所以只在概念板块上暴露。
+    统一在这里兜底：转不动就返回 default；整数值保持 int，避免渲染出 "4.0涨"。
+    """
+    if v is None or isinstance(v, bool):
+        return default
+    if isinstance(v, (int, float)):
+        return v
+    if isinstance(v, str):
+        s = v.strip().replace(",", "")
+        if s in ("", "-", "--", "—", "null", "None", "nan"):
+            return default
+        try:
+            f = float(s)
+        except ValueError:
+            return default
+        return int(f) if f.is_integer() else f
+    return default
+
+
 def _boards(board_type, pz=500):
     """type 2=行业板块  3=概念板块"""
     base = (f"/api/qt/clist/get?pn=1&pz={pz}&po=1&np=1&fltt=2&invt=2"
@@ -684,11 +708,12 @@ def _boards(board_type, pz=500):
     diff = (j.get("data") or {}).get("diff") or []
     rows = []
     for d in diff:
-        up, dn = d.get("f104"), d.get("f105")
-        tot = (up or 0) + (dn or 0)
+        up = _num(d.get("f104"), 0) or 0
+        dn = _num(d.get("f105"), 0) or 0
+        tot = up + dn
         rows.append({
-            "name": d.get("f14"), "code": d.get("f12"), "pct": d.get("f3"),
-            "amount": d.get("f6"), "turnover": d.get("f8"),
+            "name": d.get("f14"), "code": d.get("f12"), "pct": _num(d.get("f3")),
+            "amount": _num(d.get("f6")), "turnover": _num(d.get("f8")),
             "up_count": up, "down_count": dn, "members": tot,
             "breadth": round(up / tot, 3) if tot else None,
             "leader": d.get("f128"), "leader_code": d.get("f140"),
