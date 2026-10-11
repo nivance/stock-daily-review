@@ -22,6 +22,7 @@ stock-daily-review/
 ├── scripts/
 │   ├── paths.py                   # 路径解析：代码根 / 数据根分离（改路径只动这里）
 │   ├── fetch_report_data.py       # 采集层（每日定时任务调用）
+│   ├── fetch_new_high.py          # 创新高榜单采集（同花顺，按日累积，见「第 1b 步」）
 │   ├── render_report.py           # 渲染层
 │   └── backfill_history.py        # 历史数据回填（手动执行）
 └── templates/report.html          # 报告版式（配色/布局，含移动端适配）
@@ -34,6 +35,8 @@ stock-daily-review/
 ├── data/
 │   ├── history/<YYYYMMDD>.json    # 每日数据快照（采集层产出）
 │   ├── ai/<YYYYMMDD>.json         # AI 归因文字（本 skill 产出）
+│   ├── newhigh/<YYYYMMDD>.json    # 创新高明细（+ 同名 .csv 便于 Excel 打开）
+│   ├── newhigh/series.json        # 创新高家数累积序列（画曲线用）
 │   ├── cache/                     # 成交额序列、逐股日K缓存（自动积累）
 │   └── holdings.json              # 持仓清单（可选，用户自填）
 └── out/report_<YYYYMMDD>.html     # 最终报告
@@ -102,6 +105,7 @@ PY="python"          # 或你的虚拟环境 Python
 $PY "$SKILL_DIR/scripts/fetch_report_data.py" --show-paths     # 1) 环境自检
 $PY "$SKILL_DIR/scripts/fetch_report_data.py" --check-today    # 2) 是否交易日：YES / NO
 $PY "$SKILL_DIR/scripts/fetch_report_data.py"                  # 3) 采集 → <数据根>/data/history/<日期>.json
+$PY "$SKILL_DIR/scripts/fetch_new_high.py"                     # 3b) 创新高榜单 → <数据根>/data/newhigh/<日期>.json
 # 4) 由 AI 完成：读快照，撰写 <数据根>/data/ai/<日期>.json（见下方「第 2 步」）
 $PY "$SKILL_DIR/scripts/render_report.py" --date <日期>         # 5) 渲染 → <数据根>/out/report_<日期>.html
 ```
@@ -130,6 +134,34 @@ $PY "$SKILL_DIR/scripts/fetch_report_data.py"      # 自动取最新交易日
 
 产出 `<数据根>/data/history/<date>.json`，并在 stdout 打印摘要（指数/涨跌家数/成交额/涨停梯队/板块榜）。
 采集层已内置：绕过系统代理、全局限速 1.6s、重试退避、多主机降级。**不要并行、不要缩短间隔、不要短时间内反复重跑**——东财会做 IP 级封禁（实测：高频请求后 push2/push2his 整域断连，约 40 分钟后解封）。
+
+### 第 1b 步：采集创新高榜单（每日流程的一部分，约 10 秒）
+
+```bash
+$PY "$SKILL_DIR/scripts/fetch_new_high.py"               # 默认窗口「创月新高」
+$PY "$SKILL_DIR/scripts/fetch_new_high.py" --probe       # 只探数据源可用性，不落盘
+$PY "$SKILL_DIR/scripts/fetch_new_high.py" --window 半年新高
+$PY "$SKILL_DIR/scripts/fetch_new_high.py" --no-industry # 跳过行业映射（报告不显示行业分布）
+```
+
+产出 `<数据根>/data/newhigh/` 三个文件：
+
+- `<date>.json`：明细（代码/简称/涨跌幅/换手率/最新价/前期高点/前期高点日期/**距前期高点天数**/**所属行业**）+ 家数 + 前期高点日期分布；
+- `<date>.csv`：同一份明细，UTF-8 带 BOM，Excel 双击直接开 —— **完整名单只落这里，不塞进报告**；
+- `series.json`：`{日期: 家数}` 累积序列，就是第二节那条创新高曲线的数据源。
+
+**必须放在第 1 步之后、渲染之前**（渲染要读 `data/newhigh/`）。脚本内部额外做两件事：
+
+1. **行业映射**：同花顺榜单**没有行业字段**，所以再打一次东财 clist（`f100` 字段）拿全市场所属行业，缓存在 `<数据根>/data/cache/industry_map.json`，7 天内复用、抓失败回退旧缓存。报告里的「创新高行业分布」表靠它。
+2. **自我保护**：任何一页抓取失败时，当日家数**不写入** `series.json`（宁可缺一天，也不让曲线出现假的凹陷），明细仍会保留，并在报告摘要里标注"当日有分页抓取失败"。
+
+**失败不影响报告**：这一脚本失败（限流/断网）时，报告仍会正常渲染，只是不出现创新高块。**不要在采集后重试超过一次**，详见下方限流说明。
+
+**数据源限制（重要，决定了指标形态）**：
+
+- 同花顺 `data.10jqka.com.cn/rank/cxg/` 只有四档窗口：**创月新高（≈近 20 个交易日）** / 半年新高（≈120）/ 一年新高（≈250）/ 历史新高 —— **没有 60 日档**。
+- URL 里**没有日期参数**：实测把 `date/YYYY-MM-DD` 挂在路径末尾、挂在 `board/` 之后等多种形式，返回内容**字节数完全相同** → 日期被服务端忽略，**没有历史可回填**。所以家数曲线只能从启用当天起、一天一个点累积出来（首日只有 1 个点，报告显示"积累中"）。
+- 限流较严：连续快速调用会被整体拒绝（返回空表）。脚本已内置页间 0.6s 间隔 + 重试退避；若整体空表，**等几分钟再试，不要连续重跑**（实测短时间内反复重试会让接口连第 1 页都开始挂起）。
 
 ### 第 2 步：撰写 AI 归因（本 skill 的核心工作）
 
@@ -213,6 +245,8 @@ $PY "$SKILL_DIR/scripts/backfill_history.py" --verify             # 只校验：
 | 历史日K（回填用） | 新浪 `CN_MarketData.getKLineData`（沪深京全覆盖 + 指数） | 腾讯 fqkline → 东财 push2test |
 | 历史板块K线（回填用） | 东财 push2test / push2his | — |
 | 全市场代码表（回填用） | 东财 clist（1 次请求拿全沪深京） | akshare `stock_zh_a_spot` |
+| 创新高榜单 | 同花顺 `data.10jqka.com.cn/rank/cxg/`（四档窗口，**无 60 日、无历史**） | — |
+| 个股所属行业（创新高行业分布用） | 东财 clist `f100`（1 次请求拿全市场，本地缓存 7 天） | — |
 
 统计口径（用户指定：**市场交易数据一律全市场，不剔除**）：
 - **涨跌家数 = 全市场（沪深京，含北交所、含 ST）**。快照另存沪深两市口径（与同花顺/乐咕一致，如 2026-09-30：全市场 2566/2824 vs 沪深 2345/2713）与东财 ZDFenBu 交叉校验值，便于对账。
@@ -231,11 +265,21 @@ $PY "$SKILL_DIR/scripts/backfill_history.py" --verify             # 只校验：
 - 成交额序列有下限校验（沪深 1000 亿 / 北交所 20 亿），脏数据自动丢弃并落本地缓存；沪深缓存 ≥200 天且 7 天内更新过就不再联网。
 - 东财快讯只能取实时，**回测历史日期时新闻模块会是当天新闻**，属正常现象。
 - **本地/企业代理（如 `127.0.0.1:xxxx`）会污染 requests，脚本默认 `trust_env=False` 绕过；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`**。
-- **报告内置两张 Chart.js 走势图**（jsdelivr，`render_report.py` 的 `CHARTJS_CDN`）：打开报告需联网，离线时自动降级为一行文字数据。数据均来自 `data/history/` 最近 10 份快照（含报告当日）——**快照不足 10 天时画实际有的天数，少于 2 天则整块不画**：
-  - 第二节「涨跌幅区间分布」之后：**上涨家数走势**（`breadth.up`，全市场沪深京口径）；
-  - 第四节「涨停板块分布」之后：**最高连板高度**（`pools.zt[].lbc` 的最大值；无涨停池的日子跳过）。
-  两图共用同一个 `chart_block()`；一页多图时 CDN 的 `<script src>` 只在第一张图处输出一次。
+- **报告内置三张 Chart.js 走势图**（jsdelivr，`render_report.py` 的 `CHARTJS_CDN`）：打开报告需联网，离线时自动降级为一行文字数据。数据均来自 `data/history/` 最近 10 份快照（含报告当日）——**快照不足 10 天时画实际有的天数，少于 2 天则整块不画**：
+  - 第二节「涨跌幅区间分布」之后：**上涨家数走势**（`breadth.up`，全市场沪深京口径，红 `#d32b28`）；
+  - 第二节「上涨家数走势」正下方：**创新高家数走势**（同花顺「创月新高」家数，蓝 `#2563eb`，数据源是 `data/newhigh/series.json` 而非快照）；
+  - 第四节「涨停板块分布」之后：**最高连板高度**（`pools.zt[].lbc` 的最大值；无涨停池的日子跳过，紫 `#7c4ddb`）。
+  三图共用同一个 `chart_block()`；一页多图时 CDN 的 `<script src>` 只在第一张图处输出一次。
+- **第二节的「创新高」块**（`frag_newhigh()`）是 3 件东西：家数曲线 + 一行摘要（当日家数／环比／占全市场比／区间）+ 行业分布表（Top 8，含代表股）。数据全部来自 `data/newhigh/`：
+  - **未采集过创新高时整块不渲染**（`frag_newhigh` 返回空串），所以用 `backfill_history.py` 回填出来的历史日期、或没跑第 1b 步的日子，报告形状不会变形；
+  - 曲线不足 2 个点时降级为"积累中"提示行（同花顺无历史，只能逐日累积）；
+  - **行业分布依赖采集时写入的东财行业映射**（见第 1b 步）。若采集带了 `--no-industry` 或映射失败，该表退化为一行提示，曲线与摘要不受影响。
 - **Chart.js 首绘竞态坑**：在文档解析中途（或布局未定型时）`new Chart`，首绘会落在窄容器上，之后 responsive 只更新内部模型、**不重绘画布**，表现为「折线挤在左侧、坐标轴却铺满全宽」（实测 6 连发可复现，纯静态最小页反而测不出来）。修法：初始化放到 `window.load` 之后，并在创建后下一帧 + 120ms 各强制 `chart.update('none')` 一次（`render_report.py` 的 `_CHART_TMPL` 里已内置）。
+- **同花顺「创新高」榜没有历史**（`fetch_new_high.py`）：URL 无日期参数，实测带 `date/` 的多种形式返回**字节数完全相同**；它只给"当前"榜单。所以家数曲线只能逐日累积。另注意 `pd.read_html` 会把 `000011` 解析成数字 `11`（**代码丢失前导零**），已用 `zfill(6)` 补回——改解析逻辑时别把这个丢掉。
+- **同花顺创新高榜限流严厉**：连续快速调用后会整体返回空表（`ValueError: No tables found`），实测连续几次即触发、数分钟内不恢复；**压过头时连第 1 页都会一直挂起**（不是报错，是请求不返回）。不要把它放进高频循环，也不要做批量回填。
+- **创新高「距前期高点天数」= 交易日 − 前期高点日期**（自然日差）：只用于快速判断个股是"刚突破"还是"突破已久"，不是精确交易日数。
+- **东财 clist 的 `f100` 是行业名称**（如 `银行Ⅱ` / `房地产开发`），退市或无行业的返回 `"-"`，映射时必须过滤——不做过滤会凭空多出一个叫 `-` 的"行业"。实测 5922 只里 5579 只有行业，128 个行业。
+- **创新高行业分布的行业取自采集时**（写入 `data/newhigh/<date>.json` 的 `industry` 字段），渲染层不联网。若某天的 JSON 里没有该字段（早期采集的），图表照画、行业表退化为提示行。
 
 ## 持仓追踪（可选）
 

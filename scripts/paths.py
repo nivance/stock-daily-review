@@ -52,10 +52,11 @@ DATA_ROOT = resolve_data_root()
 HIST_DIR = os.path.join(DATA_ROOT, "data", "history")
 AI_DIR = os.path.join(DATA_ROOT, "data", "ai")
 CACHE_DIR = os.path.join(DATA_ROOT, "data", "cache")
+NEWHIGH_DIR = os.path.join(DATA_ROOT, "data", "newhigh")
 HOLD_PATH = os.path.join(DATA_ROOT, "data", "holdings.json")
 OUT_DIR = os.path.join(DATA_ROOT, "out")
 
-DATA_DIRS = (HIST_DIR, AI_DIR, CACHE_DIR, OUT_DIR)
+DATA_DIRS = (HIST_DIR, AI_DIR, CACHE_DIR, NEWHIGH_DIR, OUT_DIR)
 
 
 # ---------------- 目录 ----------------
@@ -148,6 +149,7 @@ def describe():
         f"  快照     : {HIST_DIR}\n"
         f"  AI归因   : {AI_DIR}\n"
         f"  缓存     : {CACHE_DIR}\n"
+        f"  创新高   : {NEWHIGH_DIR}\n"
         f"  报告     : {OUT_DIR}"
     )
 

@@ -4,6 +4,8 @@
 输入（路径以 <数据根> 为基准，见 paths.py）
   <数据根>/data/history/<date>.json   采集层产出的数据快照（硬数据）
   <数据根>/data/ai/<date>.json        AI 归因文字（新闻影响分析/主线逻辑/涨停判断/后市展望）
+  <数据根>/data/newhigh/<date>.json   创新高明细（可选，由 fetch_new_high.py 采集）
+  <数据根>/data/newhigh/series.json   创新高家数累积序列（可选，逐日累积）
 输出
   <数据根>/out/report_<date>.html     浅色（宣纸中国红）手机适配版式复盘报告
 
@@ -21,6 +23,7 @@ import html
 import json
 import os
 import sys
+from collections import Counter
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -29,7 +32,7 @@ except Exception:
 
 # 让 scripts/ 目录可 import（无论从哪个 cwd 启动）
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import AI_DIR, HIST_DIR, OUT_DIR, TPL_PATH, ensure_dirs  # noqa: E402
+from paths import AI_DIR, HIST_DIR, NEWHIGH_DIR, OUT_DIR, TPL_PATH, ensure_dirs  # noqa: E402
 
 TPL = TPL_PATH
 
@@ -250,6 +253,132 @@ def frag_lbc_trend(date):
         scope=lambda lo, hi: f"当日涨停池最高连板 · 区间 {lo} ~ {hi} 板")
 
 
+# ---------------- 片段：创新高（同花顺，按日累积） ----------------
+NEWHIGH_BLUE = "#2563eb"
+NEWHIGH_WINDOW_NOTE = "同花顺技术选股口径 · 实际窗口≈近 20 个交易日 · 全市场（沪深京）"
+
+
+def _newhigh_today(date):
+    """当日创新高明细 JSON；没有则 None。"""
+    p = os.path.join(NEWHIGH_DIR, f"{date}.json")
+    if not os.path.exists(p):
+        return None
+    try:
+        return json.load(open(p, encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _newhigh_series(date, n=TREND_DAYS):
+    """[(YYYYMMDD, 家数)] —— <= date 的最近 n 个交易日。
+
+    序列由采集层逐日累积（同花顺榜单接口没有历史，回填不了）。
+    """
+    p = os.path.join(NEWHIGH_DIR, "series.json")
+    if not os.path.exists(p):
+        return []
+    try:
+        s = json.load(open(p, encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    days = sorted(d for d in s if str(d).isdigit() and str(d) <= date)
+    return [(d, int(s[d])) for d in days[-n:] if isinstance(s[d], (int, float))]
+
+
+def frag_newhigh(snap):
+    """第二节末尾：创新高家数曲线 + 当日摘要 + 行业分布。
+
+    数据未采集时**整块不渲染**，老快照出的报告不会因缺数据而变形。
+    """
+    date = str(snap.get("date") or "")
+    today = _newhigh_today(date)
+    series = _newhigh_series(date)
+    if today is None and not series:
+        return ""
+
+    window = (today or {}).get("window") or "创月新高"
+    rows = (today or {}).get("rows") or []
+    cur = (today or {}).get("count")
+    vals = [v for _, v in series]
+
+    # ---- 曲线：不足 2 天只给提示（同花顺无历史，只能逐日累积） ----
+    if len(series) >= 2:
+        head = (f'<div class="sub-t">🏔 {e(window)}家数走势（近 {len(series)} 个交易日）'
+                f'<span class="scope-note">{NEWHIGH_WINDOW_NOTE} · '
+                f'区间 {min(vals)} ~ {max(vals)} 家</span></div>')
+        chart = chart_block(
+            "chNewHigh", [f"{d[4:6]}-{d[6:]}" for d, _ in series], vals,
+            color=NEWHIGH_BLUE, fill="rgba(37,99,235,.07)", unit=" 家", tip=" 家 ",
+            y_opts="beginAtZero: true, grace: '12%',")   # 家数柱底为 0 有意义；留白给顶点数值标签
+    else:
+        got = "、".join(f"{d[4:6]}-{d[6:]} {v} 家" for d, v in series) or "暂无"
+        head = (f'<div class="sub-t">🏔 {e(window)}家数走势'
+                f'<span class="scope-note">{NEWHIGH_WINDOW_NOTE}</span></div>')
+        chart = ('<div class="chart-fb">📊 家数曲线积累中（当前 %d 个交易日，至少需 3 天才能看出形态）<br>'
+                 '同花顺「创新高」榜单接口不提供历史数据，只能自启用之日起逐日累积。<br>'
+                 '已记录：%s</div>' % (len(series), e(got)))
+
+    # ---- 当日摘要（一行） ----
+    if cur is None:
+        note = ""
+    else:
+        prev = None
+        for d, v in series:
+            if d < date:
+                prev = v
+        b = snap.get("breadth") or {}
+        uni = (b.get("up") or 0) + (b.get("down") or 0) + (b.get("flat") or 0)
+        bits = [f'当日 <b>{cur} 家</b>']
+        if prev is not None:
+            bits.append(f'较前一交易日 <span class="{cls(cur - prev)}">{cur - prev:+d} 家</span>')
+        if uni:
+            bits.append(f"占全市场 {cur / uni * 100:.2f}%")
+        if b.get("up"):
+            bits.append(f"为上涨家数的 {cur / b['up'] * 100:.0f}%")
+        if len(vals) >= 2:
+            bits.append(f"近 {len(vals)} 日区间 {min(vals)} ~ {max(vals)} 家")
+        warn = ('<span class="mu">（当日有分页抓取失败，家数偏小，已排除在曲线之外）</span>'
+                if (today or {}).get("partial") else "")
+        note = f'<div class="note"><b>创新高摘要：</b>{" ｜ ".join(bits)}{warn}</div>'
+
+    # ---- 行业分布 ----
+    ind_html = _newhigh_industry(rows)
+
+    return head + chart + note + ind_html
+
+
+def _newhigh_industry(rows, top=8):
+    """创新高个股的行业分布（行业来自采集时的东财映射，缺失则退化为一行提示）。"""
+    if not rows:
+        return ""
+    cnt = Counter((r.get("industry") or "") for r in rows)
+    mapped = cnt.pop("", 0)
+    if not cnt:
+        return ('<div class="sub-t">🏭 创新高行业分布</div>'
+                '<div class="empty">— 本次未做行业映射（采集时带了 --no-industry '
+                '或映射失败），完整名单见 newhigh CSV —</div>')
+
+    tot = sum(cnt.values())
+    grp = {}
+    for r in rows:
+        if r.get("industry"):
+            grp.setdefault(r["industry"], []).append(r)
+
+    trs = []
+    for ind, n in cnt.most_common(top):
+        reps = sorted(grp.get(ind, []), key=lambda r: -(r.get("pct") if r.get("pct") is not None else -99))
+        cell = "／".join(f'{e(r.get("name"))}({pct(r.get("pct"))})' for r in reps[:3])
+        trs.append(f'<tr><td class="t1">{e(ind)}</td><td class="num">{n}</td>'
+                   f'<td class="num mu">{n / tot * 100:.1f}%</td>'
+                   f'<td class="mu">{cell}</td></tr>')
+
+    tail = (f'（另有 {mapped} 只未匹配到行业，多为北交所 / 次新股）' if mapped else "")
+    return ('<div class="sub-t">🏭 创新高行业分布'
+            f'<span class="scope-note">共 {len(cnt)} 个行业 · 行业取自东财{tail}</span></div>'
+            + T('<tr><th>行业</th><th>家数</th><th>占比</th><th>代表股（涨跌幅）</th></tr>'
+                + "".join(trs)))
+
+
 # ---------------- 片段：指数卡片 ----------------
 def frag_indices(snap):
     out = []
@@ -354,6 +483,7 @@ def frag_market(snap, ai):
     amt_tbl = T(f'<tr><th style="width:24%">项目</th><th style="width:26%">数值</th><th>对比</th></tr>{"".join(arows)}')
     amt_note = f'<span class="scope-note">{amt_scope_txt}</span>' if amt_scope_txt else ""
     trend = frag_up_trend(snap.get("date"))
+    newhigh = frag_newhigh(snap)   # 未采集创新高时返回 ""，整块不出现
 
     return f'''<section class="sec">
 <h2><i></i>二、市场交易数据<span class="tag mix">数据 + AI</span></h2>
@@ -370,6 +500,7 @@ def frag_market(snap, ai):
   </div>
 </div>
 {trend}
+{newhigh}
 <div class="sub-t">核心成交数据{amt_note}</div>
 {amt_tbl}
 {note}
