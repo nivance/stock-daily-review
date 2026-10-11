@@ -24,6 +24,10 @@
   python fetch_new_high.py --date 20261009
   python fetch_new_high.py --window 半年新高
   python fetch_new_high.py --probe          # 只探数据源可用性，不落盘
+
+出网
+  默认直连（绕过系统代理）；脚本会在 6 秒硬超时内自动探测，直连不通就切到系统代理，
+  两条都试过才报错。也可用 STOCK_REVIEW_TRUST_ENV=1 让系统代理作为默认通道。
 """
 import argparse
 import datetime as dt
@@ -51,7 +55,9 @@ except ImportError:  # 缺依赖时保持 None，ensure_deps() 会给出安装�
 # ---------- 环境修补：默认绕过系统代理 ----------
 # 本机与企业网络常配 127.0.0.1:xxxx 本地代理，会污染 requests 导致接口全挂，
 # 故默认关闭 trust_env（与 fetch_report_data.py 的处理保持一致）。
-# 如需走系统代理，设 STOCK_REVIEW_TRUST_ENV=1。
+# 如需**默认**走系统代理，设 STOCK_REVIEW_TRUST_ENV=1。
+# 注意：无论默认是哪条通道，_get() 都会在硬超时内自动探测并回退到可用的那一条，
+#       所以本脚本在「必须走代理」的受限环境里也能自己跑通，无需额外配置。
 if requests is not None and (os.environ.get("STOCK_REVIEW_TRUST_ENV") or "").strip().lower() not in (
         "1", "true", "yes", "on"):
     _orig_sess_init = requests.Session.__init__
@@ -145,19 +151,89 @@ def _total_pages(text):
         return 1
 
 
+# ---------------- 出网通道：直连 / 系统代理 自动探测 ----------------
+# 两种环境都会遇到，且症状相反：
+#   · 本机/企业网络的本地代理会污染 requests → 必须直连（文件顶部的全局补丁）；
+#   · 受限环境（容器 / 沙箱）限制直连、只放行系统代理 → 直连会长时间挂起（实测 75s+，
+#     且 socket read timeout 不一定会触发，请求像被黑洞吞掉）。
+# 所以每次运行先探测一次通道：默认通道按 STOCK_REVIEW_TRUST_ENV 决定（默认直连），
+# 在硬超时内拿不到结果就换另一条；选定后本次运行的所有分页都沿用它。
+_CHANNEL = {"cur": None}
+_PROBE_DEADLINE = 6      # 通道探测的墙钟上限（秒），避免被黑洞请求拖死
+_REQ_TMO = (10, 15)      # 通道确定后的常规请求超时
+
+
+def _default_channel():
+    """默认通道：True=走系统代理，False=直连。"""
+    v = (os.environ.get("STOCK_REVIEW_TRUST_ENV") or "").strip().lower()
+    return v in ("1", "true", "yes", "on")
+
+
+def _once(url, cookie, trust_env, tmo):
+    """单次请求（独立 Session，不复用 keep-alive 连接）。返回 (状态码, 文本) / (None, 原因)。"""
+    s = None
+    try:
+        s = requests.Session()
+        s.trust_env = bool(trust_env)          # 显式覆盖文件顶部的全局补丁
+        r = s.get(url,
+                  headers={"User-Agent": UA, "Cookie": "v=%s" % cookie,
+                           "Connection": "close"},
+                  timeout=tmo)
+        if r.status_code == 200 and r.text:
+            return r.status_code, r.text
+        return None, "http=%s bytes=%d" % (r.status_code, len(r.text or ""))
+    except Exception as e:  # noqa: BLE001
+        return None, "%s %s" % (type(e).__name__, str(e)[:100])
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _once_bounded(url, cookie, trust_env, deadline):
+    """把单次请求放进线程并施加硬超时——某些网络黑洞不会触发 socket 超时。"""
+    import threading
+    box = {}
+
+    def work():
+        box["r"] = _once(url, cookie, trust_env, (min(5, deadline), deadline))
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(deadline + 1)
+    if t.is_alive():
+        return None, "无响应(>%ds)" % deadline
+    return box.get("r") or (None, "无返回")
+
+
 def _get(url, make_v, tries=PAGE_RETRY):
-    """带重试与退避的单次请求，返回 (状态码, 文本)。"""
-    last = None
+    """带通道自适应 + 重试的单页请求，返回 (状态码, 文本)。"""
+    ch = _CHANNEL["cur"]
+    if ch is None:
+        first = _default_channel()
+        notes = []
+        for cand in (first, not first):
+            code, text = _once_bounded(url, make_v(), cand, _PROBE_DEADLINE)
+            if code is not None:
+                _CHANNEL["cur"] = cand
+                if cand is not first:
+                    log("  · 默认通道（%s）不通，已自动切换为%s"
+                        % ("系统代理" if first else "直连",
+                           "系统代理" if cand else "直连"))
+                return code, text
+            notes.append("%s→%s" % ("系统代理" if cand else "直连", text))
+        ch = first
+        last = "；".join(notes)
+    else:
+        last = None
+
     for i in range(tries):
-        try:
-            r = requests.get(url,
-                             headers={"User-Agent": UA, "Cookie": "v=%s" % make_v()},
-                             timeout=(10, 15))
-            if r.status_code == 200 and r.text:
-                return r.status_code, r.text
-            last = "http=%s bytes=%d" % (r.status_code, len(r.text or ""))
-        except Exception as e:  # noqa: BLE001
-            last = "%s %s" % (type(e).__name__, str(e)[:100])
+        code, text = _once(url, make_v(), ch, _REQ_TMO)
+        if code is not None:
+            return code, text
+        last = text
         if i < tries - 1:
             time.sleep(1.5 ** i)          # 1.5s / 2.25s 退避
     return None, last
