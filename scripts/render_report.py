@@ -82,43 +82,44 @@ def T(inner, stack=False, cls=""):
     return f'<div class="tw"><table{attr}>{inner}</table></div>'
 
 
-# ---------------- 片段：上涨家数走势（近 N 个交易日） ----------------
+# ---------------- 片段：走势图（近 N 个交易日，Chart.js 折线经 CDN） ----------------
 TREND_DAYS = 10
 CHARTJS_CDN = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+_CDN_EMITTED = False  # 一页多图时，CDN 的 <script src> 只输出一次（见 chart_block）
 
-# 图表块（%(cdn)s / %(labels)s / %(vals)s 由 frag_trend 填充）
-TREND_BLOCK = """
-<div class="chart-box" id="chTrendBox"><canvas id="chTrend"></canvas></div>
-<script src="%(cdn)s"></script>
+# 通用折线图块，@@XXX@@ 占位符由 chart_block() 填充。
+# 关键：必须等 load（布局定型）再建图。若在文档解析中途建图，首绘会落在未定型的窄容器上，
+# 之后 responsive 只更新内部模型、不重绘画布，表现为「折线挤在左侧、坐标轴却铺满全宽」。
+_CHART_TMPL = """
+<div class="chart-box" id="@@BOX@@"><canvas id="@@CANVAS@@"></canvas></div>
+@@CDNSCRIPT@@
 <script>
 (function(){
-  var L = %(labels)s, V = %(vals)s;
-  var box = document.getElementById('chTrendBox');
+  var L = @@LABELS@@, V = @@VALS@@, U = @@UNIT@@;
+  var box = document.getElementById('@@BOX@@');
   function fallback(){
     box.innerHTML = '<div class="chart-fb">图表库未能加载（本图需联网引用 CDN）<br>'
-      + L.map(function(d,i){ return d + ' ' + V[i] + ' 家'; }).join(' ｜ ') + '</div>';
+      + L.map(function(d,i){ return d + ' ' + V[i] + U; }).join(' ｜ ') + '</div>';
   }
-  // 关键：等 load（布局定型）再建图。若在文档解析中途建图，首绘会落在未定型的窄容器上，
-  // 之后 responsive 只更新内部模型、不重绘画布，表现为「折线挤在左侧、坐标轴却铺满全宽」。
   function init(){
     if (!window.Chart) { fallback(); return; }
     // 在折点上直接标数值（不引 datalabels 插件，自己画）
-    var upLabels = { id:'upLabels', afterDatasetsDraw:function(c){
+    var vLabels = { id:'vLabels', afterDatasetsDraw:function(c){
       var ctx = c.ctx, meta = c.getDatasetMeta(0);
       ctx.save();
       ctx.font = '600 10px -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#d32b28';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '@@COLOR@@';
       meta.data.forEach(function(pt, i){ ctx.fillText(String(V[i]), pt.x, pt.y - 5); });
       ctx.restore();
     }};
     try {
-      var chart = new Chart(document.getElementById('chTrend'), {
+      var chart = new Chart(document.getElementById('@@CANVAS@@'), {
         type: 'line',
         data: { labels: L, datasets: [{
-          data: V, borderColor: '#d32b28', borderWidth: 2,
-          backgroundColor: 'rgba(211,43,40,.07)', fill: true, tension: .32,
+          data: V, borderColor: '@@COLOR@@', borderWidth: 2,
+          backgroundColor: '@@FILL@@', fill: true, tension: .32,
           pointRadius: 3, pointHoverRadius: 5,
-          pointBackgroundColor: '#fffdf9', pointBorderColor: '#d32b28', pointBorderWidth: 2
+          pointBackgroundColor: '#fffdf9', pointBorderColor: '@@COLOR@@', pointBorderWidth: 2
         }]},
         options: {
           responsive: true, maintainAspectRatio: false,
@@ -126,22 +127,23 @@ TREND_BLOCK = """
           interaction: { intersect: false, mode: 'index' },
           plugins: {
             legend: { display: false },
-            tooltip: { callbacks: { label: function(x){ return ' 上涨 ' + x.parsed.y + ' 家'; } } }
+            tooltip: { callbacks: { label: function(x){ return @@TIP@@ + x.parsed.y + U; } } }
           },
           scales: {
-            y: { beginAtZero: true, grid: { color: '#f4e9d8', drawTicks: false },
+            y: { @@YOPTS@@
+                 grid: { color: '#f4e9d8', drawTicks: false },
                  border: { display: false },
-                 ticks: { color: '#8b7568', font: { size: 10 }, maxTicksLimit: 5, padding: 6 } },
+                 ticks: { @@YTICK@@color: '#8b7568', font: { size: 10 }, maxTicksLimit: 5, padding: 6 } },
             x: { grid: { display: false }, border: { color: '#ecd9bd' },
                  ticks: { color: '#8b7568', font: { size: 10 }, autoSkip: false,
                           maxRotation: 0, padding: 4 } }
           },
           animation: false
         },
-        plugins: [upLabels]
+        plugins: [vLabels]
       });
-      // 保险：实测个别环境下首绘会落在未定型的窄布局上，且此后模型更新、位图不再重绘
-      //（表现为折线挤在左侧、坐标轴却铺满全宽）。这里在下一帧和 120ms 后各强制全量重绘一次。
+      // 保险：实测个别环境下首绘会落在未定型的窄布局上，且此后模型更新、位图不再重绘。
+      // 这里在下一帧和 120ms 后各强制全量重绘一次。
       requestAnimationFrame(function(){ requestAnimationFrame(function(){ chart.update('none'); }); });
       setTimeout(function(){ chart.update('none'); }, 120);
     } catch (e) { fallback(); }
@@ -152,42 +154,100 @@ TREND_BLOCK = """
 </script>"""
 
 
-def load_up_trend(date, n=TREND_DAYS):
-    """最近 n 个交易日（含 date）的上涨家数 → [(YYYYMMDD, up)]，日期升序。
+def chart_block(canvas_id, labels, values, *, color, fill, unit=" 家", tip="",
+                y_opts="beginAtZero: true,", y_tick=""):
+    """生成一段自包含折线图（Chart.js 经 CDN）。labels / values 需等长。
 
-    数据源：<数据根>/data/history/<date>.json 的 breadth.up（全市场沪深京口径）。
+    一页可能有多张图，CDN 的 <script src> 只在第一张图处输出一次
+    （_CDN_EMITTED 保证），后续图表直接复用已加载的 window.Chart。
+    """
+    global _CDN_EMITTED
+    cdn_script = ""
+    if not _CDN_EMITTED:
+        cdn_script = f'<script src="{CHARTJS_CDN}"></script>'
+        _CDN_EMITTED = True
+    return (_CHART_TMPL
+            .replace("@@BOX@@", canvas_id + "Box")
+            .replace("@@CANVAS@@", canvas_id)
+            .replace("@@CDNSCRIPT@@", cdn_script)
+            .replace("@@LABELS@@", json.dumps(labels, ensure_ascii=False))
+            .replace("@@VALS@@", json.dumps(values))
+            .replace("@@UNIT@@", json.dumps(unit, ensure_ascii=False))
+            .replace("@@TIP@@", json.dumps(tip, ensure_ascii=False))
+            .replace("@@COLOR@@", color)
+            .replace("@@FILL@@", fill)
+            .replace("@@YOPTS@@", y_opts)
+            .replace("@@YTICK@@", y_tick))
+
+
+def _hist_days(date, n):
+    """<= date 的最近 n 个交易日（YYYYMMDD，升序）。"""
+    days = sorted(os.path.basename(f)[:-5] for f in glob.glob(os.path.join(HIST_DIR, "*.json")))
+    return [d for d in days if d.isdigit() and d <= date][-n:]
+
+
+def _load_trend(date, pick, n=TREND_DAYS):
+    """按 pick(snapshot) 逐日取值 → [(YYYYMMDD, value)]，日期升序；取不到的日子跳过。
+
     只看 <= date 的快照，缺文件的交易日自动跳过（非交易日本就不该有文件）。
     """
-    days = sorted(os.path.basename(f)[:-5] for f in glob.glob(os.path.join(HIST_DIR, "*.json")))
-    days = [d for d in days if d.isdigit() and d <= date][-n:]
     out = []
-    for d in days:
+    for d in _hist_days(date, n):
         try:
             s = json.load(open(os.path.join(HIST_DIR, f"{d}.json"), encoding="utf-8"))
         except Exception:  # noqa: BLE001
             continue
-        up = (s.get("breadth") or {}).get("up")
-        if isinstance(up, (int, float)):
-            out.append((d, int(up)))
+        v = pick(s)
+        if isinstance(v, (int, float)):
+            out.append((d, int(v)))
     return out
 
 
-def frag_trend(date):
-    """「涨跌幅区间分布」之后的走势图：近 N 个交易日上涨家数（含报告当日）。"""
-    rows = load_up_trend(date)
+def _up_of(snap):
+    """全市场（沪深京）上涨家数。"""
+    return (snap.get("breadth") or {}).get("up")
+
+
+def _max_lbc_of(snap):
+    """当日涨停池最高连板高度（max lbc）；无涨停池则 None。"""
+    zt = (snap.get("pools") or {}).get("zt") or []
+    lbcs = [x.get("lbc") for x in zt if isinstance(x.get("lbc"), int)]
+    return max(lbcs) if lbcs else None
+
+
+def _trend_frag(date, loader, cid, title, color, fill, unit, tip, scope,
+                y_opts="beginAtZero: true,", y_tick=""):
+    """通用走势片段：子标题（含区间） + 折线图。快照不足 2 天时退化为一行提示。"""
+    rows = loader(date)
     if len(rows) < 2:
-        return ('<div class="sub-t">📈 上涨家数走势（近 10 个交易日）</div>'
+        return (f'<div class="sub-t">{title}</div>'
                 '<div class="empty">— 历史快照不足 2 个交易日，暂不绘制走势'
                 '（可用 backfill_history.py 回填历史快照）—</div>')
     labels = [f"{d[4:6]}-{d[6:]}" for d, _ in rows]
-    vals = [u for _, u in rows]
-    head = (f'<div class="sub-t">📈 上涨家数走势（近 {len(rows)} 个交易日）'
-            f'<span class="scope-note">全市场（沪深京）口径 · 区间 {min(vals)} ~ {max(vals)} 家</span></div>')
-    return head + TREND_BLOCK % {
-        "cdn": CHARTJS_CDN,
-        "labels": json.dumps(labels, ensure_ascii=False),
-        "vals": json.dumps(vals),
-    }
+    vals = [v for _, v in rows]
+    head = (f'<div class="sub-t">{title}（近 {len(rows)} 个交易日）'
+            f'<span class="scope-note">{scope(min(vals), max(vals))}</span></div>')
+    return head + chart_block(cid, labels, vals, color=color, fill=fill,
+                              unit=unit, tip=tip, y_opts=y_opts, y_tick=y_tick)
+
+
+def frag_up_trend(date):
+    """第二节：「涨跌幅区间分布」之后的走势图 —— 近 N 个交易日上涨家数（含报告当日）。"""
+    return _trend_frag(
+        date, lambda d: _load_trend(d, _up_of),
+        cid="chUpTrend", title="📈 上涨家数走势",
+        color="#d32b28", fill="rgba(211,43,40,.07)", unit=" 家", tip=" 上涨 ",
+        scope=lambda lo, hi: f"全市场（沪深京）口径 · 区间 {lo} ~ {hi} 家")
+
+
+def frag_lbc_trend(date):
+    """第四节：「涨停板块分布」之后的走势图 —— 近 N 个交易日最高连板高度（含报告当日）。"""
+    return _trend_frag(
+        date, lambda d: _load_trend(d, _max_lbc_of),
+        cid="chLbcTrend", title="📶 最高连板高度",
+        color="#7c4ddb", fill="rgba(124,77,219,.08)", unit=" 板", tip=" 最高连板 ",
+        y_opts="beginAtZero: false, grace: '25%',", y_tick="precision: 0,",
+        scope=lambda lo, hi: f"当日涨停池最高连板 · 区间 {lo} ~ {hi} 板")
 
 
 # ---------------- 片段：指数卡片 ----------------
@@ -293,7 +353,7 @@ def frag_market(snap, ai):
     dist_tbl = T(f'<tr><th>区间</th><th>家数</th><th>分布</th></tr>{"".join(drows)}', cls="dist")
     amt_tbl = T(f'<tr><th style="width:24%">项目</th><th style="width:26%">数值</th><th>对比</th></tr>{"".join(arows)}')
     amt_note = f'<span class="scope-note">{amt_scope_txt}</span>' if amt_scope_txt else ""
-    trend = frag_trend(snap.get("date"))
+    trend = frag_up_trend(snap.get("date"))
 
     return f'''<section class="sec">
 <h2><i></i>二、市场交易数据<span class="tag mix">数据 + AI</span></h2>
@@ -419,6 +479,7 @@ def frag_limitup(snap, ai):
     sector_tbl = T(f'<tr><th>板块</th><th>涨停数</th><th>最高板</th><th>代表股</th></tr>{srow}')
     ladder_tbl = T(f'<tr><th style="width:12%">梯队</th><th style="width:11%">数量</th>'
                    f'<th style="width:46%">代表股</th><th>判断</th></tr>{lrow}', stack=True)
+    lbc_trend = frag_lbc_trend(snap.get("date"))
 
     return f'''<section class="sec">
 <h2><i></i>四、涨停梯队分析<span class="tag mix">数据 + AI</span></h2>
@@ -432,6 +493,7 @@ def frag_limitup(snap, ai):
     {sector_tbl}
   </div>
 </div>
+{lbc_trend}
 <div class="sub-t">🏆 涨停梯队结构</div>
 {ladder_tbl}
 {logic_html}
@@ -492,6 +554,8 @@ def frag_outlook(ai):
 # ---------------- 主流程 ----------------
 def render(date=None):
     ensure_dirs()
+    global _CDN_EMITTED
+    _CDN_EMITTED = False
     if not date:
         files = sorted(glob.glob(os.path.join(HIST_DIR, "*.json")))
         if not files:
