@@ -230,7 +230,9 @@ $PY "$SKILL_DIR/scripts/backfill_history.py" --verify             # 只校验：
 - 东财 `ZDFenBu` 涨跌分布接口**忽略 date 参数、永远返回当天**，不可用于历史回填（假历史）。
 - 成交额序列有下限校验（沪深 1000 亿 / 北交所 20 亿），脏数据自动丢弃并落本地缓存；沪深缓存 ≥200 天且 7 天内更新过就不再联网。
 - 东财快讯只能取实时，**回测历史日期时新闻模块会是当天新闻**，属正常现象。
-- 本地/企业代理（如 `127.0.0.1:xxxx`）会污染 requests，脚本默认 `trust_env=False` 绕过；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`。
+- **本地/企业代理（如 `127.0.0.1:xxxx`）会污染 requests，脚本默认 `trust_env=False` 绕过；企业网络必须走代理时设 `STOCK_REVIEW_TRUST_ENV=1`**。
+- **报告第二节的「上涨家数走势」图引用 Chart.js CDN**（jsdelivr，`render_report.py` 的 `CHARTJS_CDN`）：打开报告需联网，离线时该图自动降级为一行文字数据。图表数据来自 `data/history/` 最近 10 份快照的 `breadth.up`（含报告当日）——**快照不足 10 天时画实际有的天数，少于 2 天则整块不画**。
+- **Chart.js 首绘竞态坑**：在文档解析中途（或布局未定型时）`new Chart`，首绘会落在窄容器上，之后 responsive 只更新内部模型、**不重绘画布**，表现为「折线挤在左侧、坐标轴却铺满全宽」（实测 6 连发可复现，纯静态最小页反而测不出来）。修法：初始化放到 `window.load` 之后，并在创建后下一帧 + 120ms 各强制 `chart.update('none')` 一次（`render_report.py` 的 `TREND_BLOCK` 里已内置）。
 
 ## 持仓追踪（可选）
 
