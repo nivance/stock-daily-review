@@ -234,12 +234,16 @@ def _trend_frag(date, loader, cid, title, color, fill, unit, tip, scope,
                               unit=unit, tip=tip, y_opts=y_opts, y_tick=y_tick)
 
 
+UP_TREND_YMAX = 5400      # 上涨家数走势固定纵轴上界（留出普涨日空间，且跨日报告刻度可比）
+
+
 def frag_up_trend(date):
     """第二节：「涨跌幅区间分布」之后的走势图 —— 近 N 个交易日上涨家数（含报告当日）。"""
     return _trend_frag(
         date, lambda d: _load_trend(d, _up_of),
         cid="chUpTrend", title="📈 上涨家数走势",
         color="#d32b28", fill="rgba(211,43,40,.07)", unit=" 家", tip=" 上涨 ",
+        y_opts=f"beginAtZero: true, max: {UP_TREND_YMAX},",
         scope=lambda lo, hi: f"全市场（沪深京）口径 · 区间 {lo} ~ {hi} 家")
 
 
