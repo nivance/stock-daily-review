@@ -21,6 +21,11 @@ import sys
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CFG_PATH = os.path.join(SKILL_DIR, "config.json")
 TPL_PATH = os.path.join(SKILL_DIR, "templates", "report.html")
+ASSETS_DIR = os.path.join(SKILL_DIR, "assets")
+# 板块口径清单：固定名单属于代码资产（随 skill 分发、入版本库），
+# 不是运行期行情数据，所以放 assets/ 而非 DATA_ROOT
+WHITELIST_PATH = os.path.join(ASSETS_DIR, "sw2_whitelist.json")
+JUNK_PATH = os.path.join(ASSETS_DIR, "concept_junk.json")
 
 # ---------------- 数据根（随环境走） ----------------
 ENV_HOME = "STOCK_REVIEW_HOME"

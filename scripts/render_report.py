@@ -32,7 +32,8 @@ except Exception:
 
 # 让 scripts/ 目录可 import（无论从哪个 cwd 启动）
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import AI_DIR, HIST_DIR, NEWHIGH_DIR, OUT_DIR, TPL_PATH, ensure_dirs  # noqa: E402
+from paths import (AI_DIR, HIST_DIR, JUNK_PATH, NEWHIGH_DIR, OUT_DIR,  # noqa: E402
+                   TPL_PATH, WHITELIST_PATH, ensure_dirs)
 
 TPL = TPL_PATH
 
@@ -492,6 +493,205 @@ def frag_market(snap, ai):
 </section>'''
 
 
+# ---------------- 片段：板块轮动矩阵（行=当日排名，列=交易日） ----------------
+ROT_DAYS = 10   # 列数：最近 N 个交易日
+ROT_ROWS = 10   # 行数：每日 TopN
+
+_LISTS = {}
+
+
+def _board_lists():
+    """(行业白名单 set, 概念黑名单词 list)，读 assets/ 下两份固定清单。
+
+    白名单缺失时降级为「排除 Ⅲ 结尾」，保证矩阵不至于整块空白。
+    """
+    if not _LISTS:
+        try:
+            wl = set(json.load(open(WHITELIST_PATH, encoding="utf-8")).get("names") or [])
+        except Exception:  # noqa: BLE001
+            wl = set()
+        junk, seen = [], set()
+        try:
+            grp = json.load(open(JUNK_PATH, encoding="utf-8")).get("groups") or {}
+            for arr in grp.values():
+                for w in arr:
+                    if w not in seen:
+                        seen.add(w)
+                        junk.append(w)
+        except Exception:  # noqa: BLE001
+            junk = ["昨日"]
+        _LISTS["wl"], _LISTS["junk"] = wl, junk
+    return _LISTS["wl"], _LISTS["junk"]
+
+
+_CON_SUFFIX = ("概念", "板块", "指数")
+
+
+def _short_name(name, is_concept):
+    """板块名压到 4~5 字 —— 矩阵一格只有 64px 宽。
+
+    行业去掉 Ⅱ/Ⅲ 后缀（白名单同层只有一个，不会歧义）；
+    概念去掉「概念/板块/指数」尾巴（「英伟达概念」→「英伟达」）。
+    """
+    n = (name or "").strip()
+    if is_concept:
+        for suf in _CON_SUFFIX:
+            if n.endswith(suf) and len(n) > len(suf) + 1:
+                return n[: -len(suf)]
+        return n
+    return n[:-1] if (n and n[-1] in "ⅡⅢ") else n
+
+
+def _rotation(date, kind):
+    """逐日取该口径下的 TopN → [(YYYYMMDD, rows|None)]，日期升序。
+
+    历史快照里 15 天只有前 100 名（采集分页 bug 已修，旧数据未重采），
+    但 Top10 必然落在前 100 名内，回填不受影响。
+    """
+    wl, junk = _board_lists()
+    is_con = kind == "concept"
+    out = []
+    for d in _hist_days(date, ROT_DAYS):
+        try:
+            snap = json.load(open(os.path.join(HIST_DIR, f"{d}.json"), encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            out.append((d, None))
+            continue
+        rows = (snap.get("sectors") or {}).get(kind) or []
+        if is_con:
+            rows = [x for x in rows if x.get("name") and not any(k in x["name"] for k in junk)]
+        elif wl:
+            rows = [x for x in rows if x.get("name") in wl]
+        else:  # 白名单缺失：退回「东财三级板块一律以 Ⅲ 结尾」的经验规则
+            rows = [x for x in rows if x.get("name") and not x["name"].endswith("Ⅲ")]
+        rows = [x for x in rows if isinstance(x.get("pct"), (int, float))]
+        rows.sort(key=lambda x: -x["pct"])
+        out.append((d, rows[:ROT_ROWS]))
+    return out
+
+
+def _rot_cell(x, is_con):
+    if not x:
+        return '<td class="c em">—</td>'
+    p = x["pct"]
+    tone = "u2" if p >= 2.5 else "u1" if p > 0 else "d1" if p > -1 else "d2"
+    return (f'<td class="c {tone}" title="{e(x.get("name"))} {pct(p)}">'
+            f'<span class="n">{e(_short_name(x.get("name"), is_con))}</span>'
+            f'<span class="p {cls(p)}">{pct(p, 1)}</span></td>')
+
+
+def _rot_matrix(cols, is_con):
+    head = ['<tr><th class="rk">#</th>']
+    for i, (d, _) in enumerate(cols):
+        cur = ' class="cur"' if i == len(cols) - 1 else ""
+        head.append(f'<th{cur}>{d[4:6]}-{d[6:]}</th>')
+    head.append("</tr>")
+    body = []
+    for r in range(ROT_ROWS):
+        tds = [f'<td class="rk">{r + 1}</td>']
+        for _, rows in cols:
+            tds.append(_rot_cell(rows[r] if rows and r < len(rows) else None, is_con))
+        body.append(f'<tr>{"".join(tds)}</tr>')
+    # 列宽由 <col> 定死（见 report.html 的 .rot col 规则）：table-layout:fixed 下
+    # 单元格 width 只是建议值，会被压成一条缝（实测 10 列压到 39px/列）；
+    # 表格本身 width:auto，宽度即各列之和，桌面端靠媒体查询把列加宽填满
+    cg = ('<colgroup><col class="rk">'
+          + '<col class="c">' * len(cols) + "</colgroup>")
+    return ('<div class="tw rot-tw"><table class="rot">'
+            + cg + "".join(head) + "".join(body) + "</table></div>")
+
+
+def _rot_summary(cols, is_con):
+    """在榜次数 + 当前连续天数 —— 轮动真正要看的是「谁留下来了」，不是单日涨幅。"""
+    if not cols:
+        return ""
+    freq, span = {}, {}
+    for _, rows in cols:
+        for x in rows or []:
+            k = _short_name(x.get("name"), is_con)
+            freq[k] = freq.get(k, 0) + 1
+    for x in (cols[-1][1] or []):  # 只对最新一日在榜的板块算连续天数
+        k = _short_name(x.get("name"), is_con)
+        n = 0
+        for _, rows in reversed(cols):
+            if k in {_short_name(y.get("name"), is_con) for y in (rows or [])}:
+                n += 1
+            else:
+                break
+        span[k] = n
+    if not freq:
+        return ""
+    top = sorted(freq.items(), key=lambda kv: (-kv[1], -span.get(kv[0], 0)))[:4]
+    chips = "".join(
+        f'<span class="chip n">{e(k)} {v} 次'
+        + (f' · 连 {span[k]} 日' if span.get(k, 0) >= 2 else "")
+        + "</span>" for k, v in top)
+    return (f'<div class="rot-sum">近 {len([c for c in cols if c[1]])} 日在榜最多：'
+            f'{chips}</div>')
+
+
+_ROT_JS = """
+<script>
+(function(){
+  function toEnd(){ document.querySelectorAll('.rot-tw').forEach(function(b){ b.scrollLeft = b.scrollWidth; }); }
+  function boot(){
+    toEnd();
+    document.querySelectorAll('input[name=rotTab]').forEach(function(r){
+      r.addEventListener('change', function(){ setTimeout(toEnd, 0); });
+    });
+  }
+  if (document.readyState === 'complete') { boot(); }
+  else { window.addEventListener('load', function(){ boot(); setTimeout(toEnd, 150); }); }
+})();
+</script>"""
+
+
+def frag_rotation(date):
+    """第二节：板块轮动矩阵 + 口径说明。行业 / 概念两个 tab（只有一侧有数据时退化单块）。"""
+    ind = _rotation(date, "industry")
+    con = _rotation(date, "concept")
+    has_ind = any(r for _, r in ind)
+    has_con = any(r for _, r in con)
+    if not has_ind and not has_con:
+        return ""
+    n_day = len([c for c in (ind if has_ind else con) if c[1]])
+    wl, junk = _board_lists()
+
+    note = (f'列 = 交易日（{n_day} 日），行 = 当日涨幅排名；'
+            f'色深表示涨幅大小，最新一日在最右（窄屏可左右滑动）')
+    ind_src = (f'行业取申万二级 {len(wl)} 个（去 Ⅱ/Ⅲ 重复）' if wl
+               else '行业按「排除 Ⅲ 结尾」规则筛选（白名单缺失，容差略大）')
+    scope = (f'{ind_src}；'
+             f'概念剔除 {len(junk)} 类非题材标签（昨日系、风格、指数、财报事件等）。'
+             f'全市场普跌的日子，Top10 里会出现负涨幅 —— 那时排的是相对强弱，不是绝对上涨')
+    head = (f'<div class="sub-t">🔄 板块轮动（近 {n_day} 个交易日 · 每日 Top{ROT_ROWS}）'
+            f'<span class="scope-note">{note}</span></div>')
+
+    # 早期快照没采概念（2026-09 那批），此时不显示空 tab，直接给单块
+    if not (has_ind and has_con):
+        body = (_rot_matrix(ind, False) + _rot_summary(ind, False) if has_ind
+                else _rot_matrix(con, True) + _rot_summary(con, True))
+        return (f'{head}\n{body}\n'
+                f'<div class="empty" style="font-size:11px;padding:4px 0 0">{scope}</div>\n{_ROT_JS}')
+
+    def pane(cols, is_con, cls):
+        return f'<div class="pane {cls}">{_rot_matrix(cols, is_con)}{_rot_summary(cols, is_con)}</div>'
+
+    return f'''{head}
+<div class="tabs">
+<input type="radio" name="rotTab" id="rotTabInd" checked>
+<input type="radio" name="rotTab" id="rotTabCon">
+<div class="tab-bar">
+  <label for="rotTabInd">行业 · 申万二级</label>
+  <label for="rotTabCon">概念 · 已剔 {len(junk)} 类标签</label>
+</div>
+{pane(ind, False, "p-ind")}
+{pane(con, True, "p-con")}
+</div>
+<div class="empty" style="font-size:11px;padding:4px 0 0">{scope}</div>
+{_ROT_JS}'''
+
+
 # ---------------- 片段：主线与支线 ----------------
 def frag_mainline(snap, ai):
     ai = ai or {}
@@ -541,6 +741,10 @@ def frag_mainline(snap, ai):
         bottom_hint = (f"板块样本不全（仅取到涨幅前 {ind_fetched} 名），"
                        f"跌幅榜已隐藏 —— 避免把涨幅榜中段误当跌幅")
 
+    # 板块轮动矩阵：历史快照不足时退回原来的一张涨幅榜
+    rot = frag_rotation(snap.get("date") or "")
+    top_fallback = "" if rot else board_tbl(sec.get("industry_top", [])[:8], "📊 行业涨幅榜（硬数据）")
+
     return f'''<section class="sec">
 <h2><i></i>二、主线与支线<span class="tag mix">数据 + AI</span></h2>
 <div class="sub-t">🔥 今日最强主线</div>
@@ -549,8 +753,8 @@ def frag_mainline(snap, ai):
 {ai_rows(ai.get("secondlines"), sub_cols)}
 <div class="sub-t">📉 调整方向</div>
 {ai_rows(ai.get("adjusting"), adj_cols)}
-<div class="g2" style="margin-top:16px">
-  <div>{board_tbl(sec.get("industry_top", [])[:8], "📊 行业涨幅榜（硬数据）")}</div>
+{rot}{top_fallback}
+<div style="margin-top:16px">
   <div>{board_tbl((sec.get("industry_bottom", [])[:8] if ind_complete else []), "📉 行业跌幅榜（硬数据）", bottom_hint or "— 暂无跌幅板块 —")}</div>
 </div>
 </section>'''
@@ -692,7 +896,14 @@ def render(date=None):
                 f"  查找位置 : {HIST_DIR}\n"
                 "  采集命令 : python <skill目录>/scripts/fetch_report_data.py")
         date = os.path.basename(files[-1])[:-5]
-    snap = json.load(open(os.path.join(HIST_DIR, f"{date}.json"), encoding="utf-8"))
+    snap_path = os.path.join(HIST_DIR, f"{date}.json")
+    if not os.path.exists(snap_path):
+        raise SystemExit(
+            f"[缺少快照] 没有 {date} 的数据快照。\n"
+            f"  查找位置 : {HIST_DIR}\n"
+            f"  当天采集 : python <skill目录>/scripts/fetch_report_data.py --date {date}\n"
+            f"  回填历史 : python <skill目录>/scripts/backfill_history.py --days 10")
+    snap = json.load(open(snap_path, encoding="utf-8"))
     ai_path = os.path.join(AI_DIR, f"{date}.json")
     ai = json.load(open(ai_path, encoding="utf-8")) if os.path.exists(ai_path) else {}
 
