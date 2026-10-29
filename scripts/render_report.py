@@ -604,9 +604,10 @@ def _rot_cell(x, is_con):
 
 
 def _rot_matrix(cols, is_con):
+    """cols 按「最新一日在左」排列，第一列即报告当日。"""
     head = ['<tr><th class="rk">#</th>']
     for i, (d, _) in enumerate(cols):
-        cur = ' class="cur"' if i == len(cols) - 1 else ""
+        cur = ' class="cur"' if i == 0 else ""
         head.append(f'<th{cur}>{d[4:6]}-{d[6:]}</th>')
     head.append("</tr>")
     body = []
@@ -625,7 +626,10 @@ def _rot_matrix(cols, is_con):
 
 
 def _rot_summary(cols, is_con):
-    """在榜次数 + 当前连续天数 —— 轮动真正要看的是「谁留下来了」，不是单日涨幅。"""
+    """在榜次数 + 当前连续天数 —— 轮动真正要看的是「谁留下来了」，不是单日涨幅。
+
+    cols 按「最新一日在左」排列，因此 cols[0] 是报告当日，连续天数从前往后数。
+    """
     if not cols:
         return ""
     freq, span = {}, {}
@@ -633,10 +637,10 @@ def _rot_summary(cols, is_con):
         for x in rows or []:
             k = _short_name(x.get("name"), is_con)
             freq[k] = freq.get(k, 0) + 1
-    for x in (cols[-1][1] or []):  # 只对最新一日在榜的板块算连续天数
+    for x in (cols[0][1] or []):  # 只对最新一日在榜的板块算连续天数
         k = _short_name(x.get("name"), is_con)
         n = 0
-        for _, rows in reversed(cols):
+        for _, rows in cols:      # 最新 → 更早，遇到断档即停
             if k in {_short_name(y.get("name"), is_con) for y in (rows or [])}:
                 n += 1
             else:
@@ -653,26 +657,11 @@ def _rot_summary(cols, is_con):
             f'{chips}</div>')
 
 
-_ROT_JS = """
-<script>
-(function(){
-  function toEnd(){ document.querySelectorAll('.rot-tw').forEach(function(b){ b.scrollLeft = b.scrollWidth; }); }
-  function boot(){
-    toEnd();
-    document.querySelectorAll('input[name=rotTab]').forEach(function(r){
-      r.addEventListener('change', function(){ setTimeout(toEnd, 0); });
-    });
-  }
-  if (document.readyState === 'complete') { boot(); }
-  else { window.addEventListener('load', function(){ boot(); setTimeout(toEnd, 150); }); }
-})();
-</script>"""
-
-
 def frag_rotation(date):
-    """第二节：板块轮动矩阵 + 口径说明。行业 / 概念两个 tab（只有一侧有数据时退化单块）。"""
-    ind = _rotation(date, "industry")
-    con = _rotation(date, "concept")
+    """第二节：板块轮动矩阵。概念 / 行业两个 tab（默认概念），列按「最新一日在左」。"""
+    # _rotation 返回升序，这里翻成倒序：报告当日排最左，往右是更早的交易日
+    ind = list(reversed(_rotation(date, "industry")))
+    con = list(reversed(_rotation(date, "concept")))
     has_ind = any(r for _, r in ind)
     has_con = any(r for _, r in con)
     if not has_ind and not has_con:
@@ -681,25 +670,24 @@ def frag_rotation(date):
 
     # 早期快照没采概念（2026-09 那批），此时不显示空 tab，直接给单块
     if not (has_ind and has_con):
-        body = (_rot_matrix(ind, False) + _rot_summary(ind, False) if has_ind
-                else _rot_matrix(con, True) + _rot_summary(con, True))
-        return f'{head}\n{body}\n{_ROT_JS}'
+        body = (_rot_matrix(con, True) + _rot_summary(con, True) if has_con
+                else _rot_matrix(ind, False) + _rot_summary(ind, False))
+        return f'{head}\n{body}'
 
     def pane(cols, is_con, cls):
         return f'<div class="pane {cls}">{_rot_matrix(cols, is_con)}{_rot_summary(cols, is_con)}</div>'
 
     return f'''{head}
 <div class="tabs">
-<input type="radio" name="rotTab" id="rotTabInd" checked>
-<input type="radio" name="rotTab" id="rotTabCon">
+<input type="radio" name="rotTab" id="rotTabCon" checked>
+<input type="radio" name="rotTab" id="rotTabInd">
 <div class="tab-bar">
-  <label for="rotTabInd">行业</label>
   <label for="rotTabCon">概念</label>
+  <label for="rotTabInd">行业</label>
 </div>
-{pane(ind, False, "p-ind")}
 {pane(con, True, "p-con")}
-</div>
-{_ROT_JS}'''
+{pane(ind, False, "p-ind")}
+</div>'''
 
 
 # ---------------- 片段：主线与支线 ----------------
