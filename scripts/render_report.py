@@ -235,16 +235,39 @@ def _trend_frag(date, loader, cid, title, color, fill, unit, tip, scope,
                               unit=unit, tip=tip, y_opts=y_opts, y_tick=y_tick)
 
 
-UP_TREND_YMAX = 5400      # 上涨家数走势固定纵轴上界（留出普涨日空间，且跨日报告刻度可比）
+UP_TREND_YMAX = 5400      # 兜底纵轴上界：快照缺 total 时才用（例如早期回填数据）
+
+
+def _universe_of(snap):
+    """当日全市场个股数（有成交的口径）。total 缺失时用 up+down+flat 兜底。"""
+    b = snap.get("breadth") or {}
+    n = b.get("total") or (b.get("up") or 0) + (b.get("down") or 0) + (b.get("flat") or 0)
+    return int(n) if n else None
 
 
 def frag_up_trend(date):
-    """第二节：「涨跌幅区间分布」之后的走势图 —— 近 N 个交易日上涨家数（含报告当日）。"""
+    """第二节：「涨跌幅区间分布」之后的走势图 —— 近 N 个交易日上涨家数（含报告当日）。
+
+    纵轴上界取当日全市场个股数：曲线的位置因此可直接读成「有多少只涨了」，
+    顶部就是天花板（涨满全市场）。取整到 100 的倍数，避免出现 5569 这种刻度；
+    若历史某日上涨家数反超当日总数（停牌多导致当日 total 偏小），以曲线峰值为准，
+    防止把点裁掉。
+    """
+    rows = _load_trend(date, _up_of)
+    total = None
+    try:
+        snap = json.load(open(os.path.join(HIST_DIR, f"{date}.json"), encoding="utf-8"))
+        total = _universe_of(snap)
+    except Exception:  # noqa: BLE001
+        pass
+    peak = max((v for _, v in rows), default=0)
+    ymax = max(total or UP_TREND_YMAX, peak)
+    ymax = int((ymax + 99) // 100 * 100)   # 5569 → 5600
     return _trend_frag(
-        date, lambda d: _load_trend(d, _up_of),
+        date, lambda d: rows,
         cid="chUpTrend", title="📈 上涨家数走势",
         color="#d32b28", fill="rgba(211,43,40,.07)", unit=" 家", tip=" 上涨 ",
-        y_opts=f"beginAtZero: true, max: {UP_TREND_YMAX},",
+        y_opts=f"beginAtZero: true, max: {ymax},",
         scope=lambda lo, hi: f"全市场（沪深京）口径 · 区间 {lo} ~ {hi} 家")
 
 
