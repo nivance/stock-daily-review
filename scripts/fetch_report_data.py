@@ -700,45 +700,88 @@ def _num(v, default=None):
     return default
 
 
-def _boards(board_type, pz=500):
-    """type 2=行业板块  3=概念板块"""
-    base = (f"/api/qt/clist/get?pn=1&pz={pz}&po=1&np=1&fltt=2&invt=2"
-            f"&fid=f3&fs=m:90+t:{board_type}&fields={BOARD_FIELDS}")
-    j = em_get(base)
-    diff = (j.get("data") or {}).get("diff") or []
-    rows = []
-    for d in diff:
-        up = _num(d.get("f104"), 0) or 0
-        dn = _num(d.get("f105"), 0) or 0
-        tot = up + dn
-        rows.append({
-            "name": d.get("f14"), "code": d.get("f12"), "pct": _num(d.get("f3")),
-            "amount": _num(d.get("f6")), "turnover": _num(d.get("f8")),
-            "up_count": up, "down_count": dn, "members": tot,
-            "breadth": round(up / tot, 3) if tot else None,
-            "leader": d.get("f128"), "leader_code": d.get("f140"),
-        })
+BOARD_PAGE_SIZE = 100  # 东财单页硬上限：pz 传 500 服务端也只回 100，必须分页
+
+
+def _boards(board_type, pz=BOARD_PAGE_SIZE, max_pages=8, meta=None):
+    """type 2=行业板块  3=概念板块
+
+    实测（2026-10-29）：`pz=500` 服务端只返 100 条且不报错，于是快照里多天只有涨幅榜
+    前 100 名 —— 连带后果是"跌幅榜"实际取的是第 86~100 名，全市场普涨时会把 +0.9% 的
+    板块当跌幅展示（2026-10-26 真实发生）。这里改成按 pn 分页累加，直到拿满 data.total。
+
+    meta 传 dict 时回填 fetched/total/pages/complete，供上层判断样本完整性；
+    backfill_history.py 直接调用 `_boards(2)` 取 list，保持向后兼容。
+    """
+    rows, seen, total, pages = [], set(), None, 0
+    for page in range(1, max_pages + 1):
+        url = (f"/api/qt/clist/get?pn={page}&pz={pz}&po=1&np=1&fltt=2&invt=2"
+               f"&fid=f3&fs=m:90+t:{board_type}&fields={BOARD_FIELDS}")
+        try:
+            j = em_get(url)
+        except Exception as e:  # noqa: BLE001
+            if page == 1:
+                raise
+            note(f"板块 t:{board_type} 第{page}页失败 {type(e).__name__}，保留前 {pages} 页")
+            break
+        data = j.get("data") or {}
+        if data.get("total") is not None:
+            total = _num(data.get("total"), total)
+        diff = data.get("diff") or []
+        if not diff:
+            break
+        pages = page
+        for d in diff:
+            code = d.get("f12")
+            if code in seen:  # 盘中排序小幅错动会造成跨页重复，按板块代码去重
+                continue
+            seen.add(code)
+            up = _num(d.get("f104"), 0) or 0
+            dn = _num(d.get("f105"), 0) or 0
+            members = up + dn
+            rows.append({
+                "name": d.get("f14"), "code": code, "pct": _num(d.get("f3")),
+                "amount": _num(d.get("f6")), "turnover": _num(d.get("f8")),
+                "up_count": up, "down_count": dn, "members": members,
+                "breadth": round(up / members, 3) if members else None,
+                "leader": d.get("f128"), "leader_code": d.get("f140"),
+            })
+        if len(diff) < pz or (total and len(rows) >= total):
+            break
+    if meta is not None:
+        # complete 判定留 5% 容差：盘中板块按涨幅实时重排，翻页间隔里会有板块跨页移动，
+        # 去重后必然少几条（实测 490/496、506/516）。盘后采集数据静止才能 100% 对齐，
+        # 但采集任务不保证总在盘后跑，所以用容差而不是等值判断。
+        meta.update({"fetched": len(rows), "total": total, "pages": pages,
+                     "complete": (len(rows) >= total * 0.95) if total else (len(rows) >= 300)})
     return rows
 
 
 def fetch_sectors(top=15, min_members=5):
-    """行业 + 概念板块涨幅榜。窄口径板块（成员数 < min_members）不进榜，避免“1 只票拉出 6%”的假强势"""
-    out = {"industry": [], "concept": [], "source": "eastmoney"}
-    try:
-        out["industry"] = _boards(2)
-    except Exception as e:  # noqa: BLE001
-        note(f"行业板块失败 {type(e).__name__}")
-    try:
-        out["concept"] = _boards(3)
-    except Exception as e:  # noqa: BLE001
-        note(f"概念板块失败 {type(e).__name__}")
+    """行业 + 概念板块涨幅榜。
 
-    def pick(rows):
+    窄口径板块（成员数 < min_members）不进榜，避免“1 只票拉出 6%”的假强势。
+
+    跌幅榜只在分页拿全量时才生成：样本被截断时"末 top 名"其实是涨幅榜中段，全市场
+    普涨的日子会把正涨幅当跌幅展示。截断时给空列表，由渲染层提示"样本不全"，
+    宁可不显示也不给错榜。
+    """
+    out = {"industry": [], "concept": [], "source": "eastmoney", "meta": {}}
+    for key, bt, label in (("industry", 2, "行业"), ("concept", 3, "概念")):
+        m = {}
+        try:
+            out[key] = _boards(bt, meta=m)
+        except Exception as e:  # noqa: BLE001
+            note(f"{label}板块失败 {type(e).__name__}")
+        out["meta"][key] = m
+
+    def pick(rows, m):
         big = [r for r in rows if (r["members"] or 0) >= min_members]
-        return {"top": big[:top], "bottom": big[-top:][::-1]}
+        return {"top": big[:top],
+                "bottom": big[-top:][::-1] if m.get("complete") else []}
 
-    ind = pick(out["industry"])
-    con = pick(out["concept"])
+    ind = pick(out["industry"], out["meta"]["industry"])
+    con = pick(out["concept"], out["meta"]["concept"])
     out.update({"industry_top": ind["top"], "industry_bottom": ind["bottom"],
                 "concept_top": con["top"], "concept_bottom": con["bottom"]})
     return out

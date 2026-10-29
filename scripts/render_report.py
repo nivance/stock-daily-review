@@ -519,15 +519,27 @@ def frag_mainline(snap, ai):
     sub_cols = [("方向", "name"), ("涨幅", "pct_text"), ("逻辑", "logic"), ("代表股", "leaders")]
     adj_cols = [("方向", "name"), ("涨幅", "pct_text"), ("调整原因", "reason")]
 
-    def board_tbl(rows, title):
+    def board_tbl(rows, title, hint=""):
         if not rows:
-            return ""
+            return f'<div class="sub-t">{title}</div><div class="empty">{hint}</div>' if hint else ""
         body = "".join(
             f'<tr><td>{e(x["name"])}</td><td class="num {cls(x["pct"])}">{pct(x["pct"])}</td>'
             f'<td class="mu num">{x["up_count"]}涨/{x["down_count"]}跌</td>'
             f'<td class="mu">{e(x.get("leader") or "")}</td></tr>' for x in rows)
         inner = f'<tr><th>板块</th><th>涨幅</th><th>内部涨跌</th><th>领涨股</th></tr>{body}'
         return f'<div class="sub-t">{title}</div>{T(inner)}'
+
+    # 板块样本完整性：采集层分页拿全才给跌幅榜；旧快照无 meta 时按条数兜底
+    # （全量日 496 个，被单页截断的日子只有 100 个）
+    ind_meta = (sec.get("meta") or {}).get("industry") or {}
+    ind_fetched = ind_meta.get("fetched") or len(sec.get("industry") or [])
+    ind_complete = ind_meta.get("complete")
+    if ind_complete is None:
+        ind_complete = ind_fetched >= 300
+    bottom_hint = ""
+    if not ind_complete:
+        bottom_hint = (f"板块样本不全（仅取到涨幅前 {ind_fetched} 名），"
+                       f"跌幅榜已隐藏 —— 避免把涨幅榜中段误当跌幅")
 
     return f'''<section class="sec">
 <h2><i></i>二、主线与支线<span class="tag mix">数据 + AI</span></h2>
@@ -539,7 +551,7 @@ def frag_mainline(snap, ai):
 {ai_rows(ai.get("adjusting"), adj_cols)}
 <div class="g2" style="margin-top:16px">
   <div>{board_tbl(sec.get("industry_top", [])[:8], "📊 行业涨幅榜（硬数据）")}</div>
-  <div>{board_tbl(sec.get("industry_bottom", [])[:8], "📉 行业跌幅榜（硬数据）")}</div>
+  <div>{board_tbl((sec.get("industry_bottom", [])[:8] if ind_complete else []), "📉 行业跌幅榜（硬数据）", bottom_hint or "— 暂无跌幅板块 —")}</div>
 </div>
 </section>'''
 
