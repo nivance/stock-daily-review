@@ -398,25 +398,6 @@ def frag_indices(snap):
     return "".join(out)
 
 
-# ---------------- 片段：新闻与消息面 ----------------
-def frag_news(ai, idx=1):
-    n = (ai or {}).get("news") or {}
-    items = n.get("items") or []
-    head = (f'<h2><i></i>一、新闻与消息面<span class="tag ai">AI 归因</span></h2>'
-            f'<div class="sub-t">● {e(n.get("label") or "消息面")}</div>')
-    if not items:
-        return f'<section class="sec">{head}<div class="empty">— 本次未生成新闻归因（待补 ai.news.items）—</div></section>'
-    rows = []
-    chip = {"利好": "g", "利空": "b", "中性": "n"}
-    for it in items:
-        tag = it.get("tag") or "中性"
-        rows.append(f'<tr><td><span class="chip {chip.get(tag, "n")}">{e(tag)}</span>'
-                    f'<span class="t1">{e(it.get("title"))}</span></td>'
-                    f'<td>{e(it.get("text"))}</td></tr>')
-    tbl = T(f'<tr><th style="width:28%">事件</th><th>影响分析</th></tr>{"".join(rows)}', stack=True)
-    return f'<section class="sec">{head}{tbl}</section>'
-
-
 # ---------------- 片段：市场交易数据 ----------------
 def frag_market(snap, ai):
     b = snap.get("breadth") or {}
@@ -490,7 +471,7 @@ def frag_market(snap, ai):
     newhigh = frag_newhigh(snap)   # 未采集创新高时返回 ""，整块不出现
 
     return f'''<section class="sec">
-<h2><i></i>二、市场交易数据<span class="tag mix">数据 + AI</span></h2>
+<h2><i></i>一、市场交易数据<span class="tag mix">数据 + AI</span></h2>
 <div class="g2">
   <div>
     <div class="sub-t">涨跌家数分布{scope_txt}</div>
@@ -549,7 +530,7 @@ def frag_mainline(snap, ai):
         return f'<div class="sub-t">{title}</div>{T(inner)}'
 
     return f'''<section class="sec">
-<h2><i></i>三、主线与支线<span class="tag mix">数据 + AI</span></h2>
+<h2><i></i>二、主线与支线<span class="tag mix">数据 + AI</span></h2>
 <div class="sub-t">🔥 今日最强主线</div>
 {ai_rows(ai.get("mainlines"), main_cols)}
 <div class="sub-t">⚡ 次主线 / 支线</div>
@@ -568,7 +549,7 @@ def frag_limitup(snap, ai):
     p = snap.get("pools") or {}
     zt = (ai or {}).get("zt") or {}
     if not p or p.get("zt_count") is None:
-        return '<section class="sec"><h2><i></i>四、涨停梯队分析<span class="tag mix">数据 + AI</span></h2><div class="empty">— 无涨停池数据 —</div></section>'
+        return '<section class="sec"><h2><i></i>三、涨停梯队分析<span class="tag mix">数据 + AI</span></h2><div class="empty">— 无涨停池数据 —</div></section>'
 
     ladder = p.get("ladder") or {}
     n3, n2, n1 = len(ladder.get("3plus", [])), len(ladder.get("2", [])), len(ladder.get("1", []))
@@ -617,7 +598,7 @@ def frag_limitup(snap, ai):
     lbc_trend = frag_lbc_trend(snap.get("date"))
 
     return f'''<section class="sec">
-<h2><i></i>四、涨停梯队分析<span class="tag mix">数据 + AI</span></h2>
+<h2><i></i>三、涨停梯队分析<span class="tag mix">数据 + AI</span></h2>
 <div class="g2">
   <div>
     <div class="sub-t">涨停整体画像（沪深涨停池，打板口径）</div>
@@ -638,7 +619,7 @@ def frag_limitup(snap, ai):
 # ---------------- 片段：持仓追踪 ----------------
 def frag_holdings(snap, ai):
     hs = snap.get("holdings") or []
-    head = '<h2><i></i>五、持仓收益追踪<span class="tag data">硬数据</span></h2>'
+    head = '<h2><i></i>四、持仓收益追踪<span class="tag data">硬数据</span></h2>'
     if not hs:
         return (f'<section class="sec">{head}<div class="empty">— 未配置持仓清单：在 '
                 f'<code>data/holdings.json</code> 中按 <code>[{{"secid":"0.300145","name":"南方泵业","cost":..}}]</code> '
@@ -678,7 +659,7 @@ def frag_outlook(ai):
     s = ai.get("outlook_short") or []
     m = ai.get("outlook_mid") or []
     return f'''<section class="sec">
-<h2><i></i>六、后市展望<span class="tag ai">AI 判断</span></h2>
+<h2><i></i>五、后市展望<span class="tag ai">AI 判断</span></h2>
 <div class="sub-t">短期（1 周内）</div>
 {tbl(s, short_cols)}
 <div class="sub-t">中期（1 个月 ~ 2 个月）</div>
@@ -714,7 +695,6 @@ def render(date=None):
         "SUBTITLE": f'{d.strftime("%Y年%m月%d日")}（{WEEK[d.weekday()]}）收盘复盘',
         "SOURCE_NOTE": f'数据日期 {d.isoformat()} ｜ 统计口径：全市场 {universe} 只个股 ｜ 指数来源 {srcs}',
         "INDEX_CARDS": frag_indices(snap),
-        "SEC_NEWS": frag_news(ai),
         "SEC_MARKET": frag_market(snap, ai),
         "SEC_MAINLINE": frag_mainline(snap, ai),
         "SEC_LIMITUP": frag_limitup(snap, ai),
