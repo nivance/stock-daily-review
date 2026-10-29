@@ -655,24 +655,13 @@ def frag_rotation(date):
     if not has_ind and not has_con:
         return ""
     n_day = len([c for c in (ind if has_ind else con) if c[1]])
-    wl, junk = _board_lists()
-
-    note = (f'列 = 交易日（{n_day} 日），行 = 当日涨幅排名；'
-            f'色深表示涨幅大小，最新一日在最右（窄屏可左右滑动）')
-    ind_src = (f'行业取申万二级 {len(wl)} 个（去 Ⅱ/Ⅲ 重复）' if wl
-               else '行业按「排除 Ⅲ 结尾」规则筛选（白名单缺失，容差略大）')
-    scope = (f'{ind_src}；'
-             f'概念剔除 {len(junk)} 类非题材标签（昨日系、风格、指数、财报事件等）。'
-             f'全市场普跌的日子，Top10 里会出现负涨幅 —— 那时排的是相对强弱，不是绝对上涨')
-    head = (f'<div class="sub-t">🔄 板块轮动（近 {n_day} 个交易日 · 每日 Top{ROT_ROWS}）'
-            f'<span class="scope-note">{note}</span></div>')
+    head = f'<div class="sub-t">🔄 板块轮动（近 {n_day} 个交易日 · 每日 Top{ROT_ROWS}）</div>'
 
     # 早期快照没采概念（2026-09 那批），此时不显示空 tab，直接给单块
     if not (has_ind and has_con):
         body = (_rot_matrix(ind, False) + _rot_summary(ind, False) if has_ind
                 else _rot_matrix(con, True) + _rot_summary(con, True))
-        return (f'{head}\n{body}\n'
-                f'<div class="empty" style="font-size:11px;padding:4px 0 0">{scope}</div>\n{_ROT_JS}')
+        return f'{head}\n{body}\n{_ROT_JS}'
 
     def pane(cols, is_con, cls):
         return f'<div class="pane {cls}">{_rot_matrix(cols, is_con)}{_rot_summary(cols, is_con)}</div>'
@@ -682,13 +671,12 @@ def frag_rotation(date):
 <input type="radio" name="rotTab" id="rotTabInd" checked>
 <input type="radio" name="rotTab" id="rotTabCon">
 <div class="tab-bar">
-  <label for="rotTabInd">行业 · 申万二级</label>
-  <label for="rotTabCon">概念 · 已剔 {len(junk)} 类标签</label>
+  <label for="rotTabInd">行业</label>
+  <label for="rotTabCon">概念</label>
 </div>
 {pane(ind, False, "p-ind")}
 {pane(con, True, "p-con")}
 </div>
-<div class="empty" style="font-size:11px;padding:4px 0 0">{scope}</div>
 {_ROT_JS}'''
 
 
