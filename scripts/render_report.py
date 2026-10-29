@@ -738,9 +738,9 @@ def frag_mainline(snap, ai):
 {ai_rows(ai.get("mainlines"), main_cols)}
 <div class="sub-t">⚡ 次主线 / 支线</div>
 {ai_rows(ai.get("secondlines"), sub_cols)}
+{rot}{top_fallback}
 <div class="sub-t">📉 调整方向</div>
 {ai_rows(ai.get("adjusting"), adj_cols)}
-{rot}{top_fallback}
 <div style="margin-top:16px">
   <div>{board_tbl((sec.get("industry_bottom", [])[:8] if ind_complete else []), "📉 行业跌幅榜（硬数据）", bottom_hint or "— 暂无跌幅板块 —")}</div>
 </div>
