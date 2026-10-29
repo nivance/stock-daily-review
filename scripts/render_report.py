@@ -654,8 +654,7 @@ def frag_rotation(date):
     has_con = any(r for _, r in con)
     if not has_ind and not has_con:
         return ""
-    n_day = len([c for c in (ind if has_ind else con) if c[1]])
-    head = f'<div class="sub-t">🔄 板块轮动（近 {n_day} 个交易日 · 每日 Top{ROT_ROWS}）</div>'
+    head = '<div class="sub-t">🔄 板块轮动</div>'
 
     # 早期快照没采概念（2026-09 那批），此时不显示空 tab，直接给单块
     if not (has_ind and has_con):
