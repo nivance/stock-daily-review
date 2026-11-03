@@ -22,6 +22,7 @@ import glob
 import html
 import json
 import os
+import re
 import sys
 from collections import Counter
 
@@ -69,6 +70,65 @@ def yi(v, dec=0):
     if a >= 1e8:
         return f"{v / 1e8:,.{dec}f}亿"
     return f"{v / 1e4:,.0f}万"
+
+
+_SENT_END = re.compile(r"(?<=[。！？])")
+_CLAUSE_END = re.compile(r"(?<=[；;])")
+
+# AI 文字里属于「整段长文」的字段，渲染时按句分段而不是整块塞进单元格
+_AI_TEXT_KEYS = ("logic", "leaders", "reason")
+
+
+def split_paras(text, soft=180, min_tail=40):
+    """把 AI 写的长段文字按句切成若干段，供分段渲染。
+
+    AI 的 market_commentary / logic / leaders 都是「一整段、无换行」的连续文本，
+    塞进 .note 或表格单元格后就成了一坨。AI 原本的写法是「主题：细节。主题：细节。」，
+    按句号切开天然一段一个主题，不需要猜。
+
+    只在单句超过 soft 字时才按分号做二级拆分（这类长句通常是「；」串起来的指标堆叠），
+    末块短于 min_tail 时并回上一块 —— 否则会切出「涨跌比 0.64。」这种孤零零的碎片。
+    """
+    s = (text or "").strip()
+    if not s:
+        return []
+    out = []
+    for sent in _SENT_END.split(s):
+        sent = sent.strip()
+        if not sent:
+            continue
+        if len(sent) <= soft:
+            out.append(sent)
+            continue
+        chunks, buf = [], ""
+        for piece in _CLAUSE_END.split(sent):
+            piece = piece.strip()
+            if not piece:
+                continue
+            if buf and len(buf) + len(piece) > soft:
+                chunks.append(buf)
+                buf = piece
+            else:
+                buf += piece
+        if buf:
+            chunks.append(buf)
+        if len(chunks) > 1 and len(chunks[-1]) < min_tail:
+            tail = chunks.pop()
+            chunks[-1] += tail
+        out.extend(chunks)
+    return out
+
+
+def paras_html(text, label=""):
+    """分段渲染：label 非空时拼在第一段前面（用于「行情惯性（AI）：」这类前缀）。"""
+    ps = split_paras(text)
+    if not ps:
+        return ""
+    parts = []
+    for i, p in enumerate(ps):
+        head = label if i == 0 else ""
+        parts.append(f'<p class="para">{head}{e(p)}</p>')
+    return "".join(parts)
 
 
 def t2date(s):
@@ -474,7 +534,7 @@ def frag_market(snap, ai):
         arows = [x for x in arows if x]
 
     cm = (ai or {}).get("market_commentary")
-    note = (f'<div class="note"><b>行情惯性（AI）：</b>{e(cm)}</div>' if cm
+    note = (f'<div class="note">{paras_html(cm, "<b>行情惯性（AI）：</b>")}</div>' if cm
             else '<div class="note warn"><b>行情惯性：</b>待补（ai.market_commentary）</div>')
 
     # 口径标注：家数与涨跌停均按全市场（沪深京，含北交所）统计，不剔除
@@ -695,7 +755,7 @@ def frag_mainline(snap, ai):
     ai = ai or {}
     sec = snap.get("sectors") or {}
 
-    def ai_rows(rows, cols):
+    def ai_rows(rows, cols, widths=None):
         if not rows:
             return '<div class="empty">— 待补 —</div>'
         head = "".join(f'<th>{c[0]}</th>' for c in cols)
@@ -708,10 +768,16 @@ def frag_mainline(snap, ai):
                     tds.append(f'<td class="num {cls(r.get("pct_val"))}">{e(v)}</td>')
                 elif i == 0:
                     tds.append(f'<td class="t1">{e(v)}</td>')
+                elif key in _AI_TEXT_KEYS and v:
+                    # 长文本按句分段：一整段塞进窄列会糊成一块，分段后可逐条读
+                    tds.append(f"<td>{paras_html(v)}</td>")
                 else:
                     tds.append(f"<td>{e(v)}</td>")
             body.append(f'<tr>{"".join(tds)}</tr>')
-        return T(f'<tr>{head}</tr>{"".join(body)}', stack=True)
+        cg = ""
+        if widths:
+            cg = "<colgroup>" + "".join(f'<col style="width:{w}">' for w in widths) + "</colgroup>"
+        return T(cg + f'<tr>{head}</tr>{"".join(body)}', stack=True)
 
     main_cols = [("主线", "name"), ("涨幅", "pct_text"), ("核心逻辑", "logic"), ("核心龙头", "leaders")]
     sub_cols = [("方向", "name"), ("涨幅", "pct_text"), ("逻辑", "logic"), ("代表股", "leaders")]
@@ -746,12 +812,12 @@ def frag_mainline(snap, ai):
     return f'''<section class="sec">
 <h2><i></i>二、主线与支线<span class="tag mix">数据 + AI</span></h2>
 <div class="sub-t">🔥 今日最强主线</div>
-{ai_rows(ai.get("mainlines"), main_cols)}
+{ai_rows(ai.get("mainlines"), main_cols, ["17%", "9%", "29%", "45%"])}
 <div class="sub-t">⚡ 次主线 / 支线</div>
-{ai_rows(ai.get("secondlines"), sub_cols)}
+{ai_rows(ai.get("secondlines"), sub_cols, ["17%", "9%", "37%", "37%"])}
 {rot}{top_fallback}
 <div class="sub-t">📉 调整方向</div>
-{ai_rows(ai.get("adjusting"), adj_cols)}
+{ai_rows(ai.get("adjusting"), adj_cols, ["20%", "11%", "69%"])}
 <div style="margin-top:16px">
   <div>{board_tbl((sec.get("industry_bottom", [])[:8] if ind_complete else []), "📉 行业跌幅榜（硬数据）", bottom_hint or "— 暂无跌幅板块 —")}</div>
 </div>
@@ -802,7 +868,7 @@ def frag_limitup(snap, ai):
         for _, t, lab, n, rp, nt in ladder_rows)
 
     logic = zt.get("logic_vs_emotion")
-    logic_html = (f'<div class="note"><b>逻辑迷雾 vs 情绪炒作：</b>{e(logic)}</div>' if logic
+    logic_html = (f'<div class="note">{paras_html(logic, "<b>逻辑迷雾 vs 情绪炒作：</b>")}</div>' if logic
                   else '<div class="note warn"><b>逻辑迷雾 vs 情绪炒作：</b>待补（ai.zt.logic_vs_emotion）</div>')
 
     profile_tbl = T(prow)

@@ -104,6 +104,13 @@ tr:hover td{background:#fdf6ec}
   padding:10px 14px;font-size:13px;line-height:1.8;color:#6b4a42;margin-top:12px}
 .note b{color:var(--red);font-weight:500}
 .note.warn{border-left-color:var(--orange)}
+/* 分段：AI 长文按句拆成多段，避免一整块 */
+.note .para{margin:0 0 8px}
+.note .para:last-child{margin-bottom:0}
+table.stack{table-layout:fixed}
+table.stack td{vertical-align:top;overflow-wrap:anywhere}
+table.stack td .para{margin:0 0 6px}
+table.stack td .para:last-child{margin-bottom:0}
 /* chips */
 .chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;margin-right:6px;vertical-align:1px}
 .chip.g{background:#fdecea;color:#c0392b}
